@@ -1,0 +1,28 @@
+[
+  {
+    "word": "tinnitus",
+    "score": 10141200,
+    "tags": ["syn", "n", "results_type:primary_external", "results_type:backfill_gloss"]
+  },
+  {
+    "word": "acouasm",
+    "score": 10018400,
+    "tags": ["n"]
+  },
+  {
+    "word": "singing",
+    "score": 10018400,
+    "tags": ["n", "adj"]
+  },
+  {
+    "word": "ringing",
+    "score": 9995600,
+    "tags": ["n", "adj"]
+  },
+  {
+    "word": "buzzing",
+    "score": 9972800,
+    "tags": ["n", "adj"]
+  }
+]
+
