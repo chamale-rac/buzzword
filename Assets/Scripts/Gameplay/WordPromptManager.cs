@@ -23,6 +23,7 @@ public class WordPromptManager : MonoBehaviour
     [SerializeField] private TextMeshProUGUI resultMessage;
     [SerializeField] private TextMeshProUGUI pointsEarnedText;
     [SerializeField] private TextMeshProUGUI totalScoreText;
+    [SerializeField] private TextMeshProUGUI topWordsText; // Para mostrar top 10 palabras de Datamuse
     [SerializeField] private Button nextButton;
     [SerializeField] private Button menuButton;
 
@@ -122,6 +123,14 @@ public class WordPromptManager : MonoBehaviour
 
     private IEnumerator GenerateNewPhrase()
     {
+        if (GameManager.Instance == null)
+        {
+            Debug.LogError("GameManager.Instance is null - cannot generate phrase");
+            if (loadingPanel != null)
+                loadingPanel.SetActive(false);
+            yield break;
+        }
+
         int difficulty = GameManager.Instance.currentLevel;
         bool phraseReceived = false;
 
@@ -136,8 +145,8 @@ public class WordPromptManager : MonoBehaviour
             Debug.Log($"Phrase generated: {result.phrase} (Target: {result.targetWord})");
         });
 
-        // Wait for phrase to be received
-        float timeout = 10f;
+        // Wait for phrase to be received with extended timeout
+        float timeout = 35f; // Match the API timeout + buffer
         float elapsed = 0f;
         while (!phraseReceived && elapsed < timeout)
         {
@@ -147,17 +156,26 @@ public class WordPromptManager : MonoBehaviour
 
         if (!phraseReceived)
         {
-            Debug.LogError("Failed to generate phrase - timeout");
+            Debug.LogError("Failed to generate phrase - timeout after waiting for API response");
             if (feedbackText != null)
                 feedbackText.text = "Error loading phrase. Please try again.";
+            
+            // Disable loading panel even on error
+            if (loadingPanel != null)
+                loadingPanel.SetActive(false);
+            
+            yield break;
         }
 
         if (loadingPanel != null)
             loadingPanel.SetActive(false);
 
         // Start timer
-        timeRemaining = GameManager.Instance.GetCurrentTimeLimit();
-        roundActive = true;
+        if (GameManager.Instance != null)
+        {
+            timeRemaining = GameManager.Instance.GetCurrentTimeLimit();
+            roundActive = true;
+        }
     }
 
     private void OnSubmitGuess()
@@ -203,8 +221,8 @@ public class WordPromptManager : MonoBehaviour
             resultReceived = true;
         });
 
-        // Wait for result
-        float timeout = 10f;
+        // Wait for result with extended timeout
+        float timeout = 20f; // Match the API timeout + buffer
         float elapsed = 0f;
         while (!resultReceived && elapsed < timeout)
         {
@@ -221,6 +239,7 @@ public class WordPromptManager : MonoBehaviour
         }
         else
         {
+            Debug.LogError("Failed to check word match - timeout");
             if (feedbackText != null)
                 feedbackText.text = "Error checking answer. Please try again.";
         }
@@ -229,7 +248,8 @@ public class WordPromptManager : MonoBehaviour
     private void ProcessResult(MatchResult result, string guess)
     {
         // Add score
-        GameManager.Instance.AddScore(result.points);
+        if (GameManager.Instance != null)
+            GameManager.Instance.AddScore(result.points);
 
         // Play sound
         if (result.matched)
@@ -256,19 +276,45 @@ public class WordPromptManager : MonoBehaviour
         {
             if (result.matched)
             {
-                resultMessage.text = $"{result.rank} Match!\n\nYou guessed: <b>{guess}</b>\nTarget word: <b>{currentPhrase.targetWord}</b>";
+                resultMessage.text = $"<b>{result.rank} Match!</b>\n\nYou guessed: <b>{guess}</b>";
             }
             else
             {
-                resultMessage.text = $"No Match\n\nYou guessed: <b>{guess}</b>\nTarget word: <b>{currentPhrase.targetWord}</b>\n\n{result.message}";
+                resultMessage.text = $"<b>No Match</b>\n\nYou guessed: <b>{guess}</b>\n\n{result.message}";
             }
         }
 
         if (pointsEarnedText != null)
             pointsEarnedText.text = $"+{result.points} points";
 
-        if (totalScoreText != null)
+        if (totalScoreText != null && GameManager.Instance != null)
             totalScoreText.text = $"Total Score: {GameManager.Instance.totalScore}";
+
+        // Mostrar top 10 palabras según Datamuse
+        if (topWordsText != null && result.topWords != null && result.topWords.Length > 0)
+        {
+            string topWordsDisplay = "<b>Best Answers (Datamuse):</b>\n\n";
+            for (int i = 0; i < result.topWords.Length; i++)
+            {
+                // Usar números incluso para top 3 (sin emojis)
+                string prefix = $"{i + 1}.";
+
+                // Resaltar si es la palabra que adivinó el usuario
+                if (result.topWords[i].ToLower() == guess.ToLower())
+                {
+                    topWordsDisplay += $"{prefix} <color=yellow><b>{result.topWords[i]}</b> ← Your guess!</color>\n";
+                }
+                else
+                {
+                    topWordsDisplay += $"{prefix} {result.topWords[i]}\n";
+                }
+            }
+            topWordsText.text = topWordsDisplay;
+        }
+        else if (topWordsText != null)
+        {
+            topWordsText.text = "";
+        }
 
         UpdateScoreDisplay();
     }
@@ -277,6 +323,12 @@ public class WordPromptManager : MonoBehaviour
     {
         if (AudioManager.Instance != null)
             AudioManager.Instance.PlayButtonClick();
+
+        if (GameManager.Instance == null)
+        {
+            Debug.LogError("GameManager.Instance is null - cannot proceed to next round");
+            return;
+        }
 
         GameManager.Instance.NextRound();
 
@@ -294,6 +346,12 @@ public class WordPromptManager : MonoBehaviour
     {
         if (AudioManager.Instance != null)
             AudioManager.Instance.PlayLevelComplete();
+
+        if (GameManager.Instance == null)
+        {
+            Debug.LogError("GameManager.Instance is null - cannot complete level");
+            return;
+        }
 
         if (GameManager.Instance.IsGameComplete())
         {
@@ -401,6 +459,12 @@ public class WordPromptManager : MonoBehaviour
 
     private void UpdateLevelInfo()
     {
+        if (GameManager.Instance == null)
+        {
+            Debug.LogWarning("GameManager.Instance is null - cannot update level info");
+            return;
+        }
+
         if (levelText != null)
             levelText.text = $"Level {GameManager.Instance.currentLevel}";
 
@@ -412,6 +476,12 @@ public class WordPromptManager : MonoBehaviour
 
     private void UpdateScoreDisplay()
     {
+        if (GameManager.Instance == null)
+        {
+            Debug.LogWarning("GameManager.Instance is null - cannot update score");
+            return;
+        }
+
         if (scoreText != null)
             scoreText.text = $"Score: {GameManager.Instance.totalScore}";
     }
