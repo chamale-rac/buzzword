@@ -1,154 +1,84 @@
 {
   "prompts": [
     {
-      "phrase": "A domestic animal that purrs and meows",
-      "targetWord": "cat",
-      "difficulty": 1
+      "language": "en",
+      "difficulty": 1,
+      "phrase": "A loyal friend that sprints to the door when you whisper walk",
+      "targetWord": "dog",
+      "acceptedWords": ["dog", "puppy", "canine", "pet dog"],
+      "hint": "Barks at the mail carrier"
     },
     {
-      "phrase": "A round object used in many sports",
-      "targetWord": "ball",
-      "difficulty": 1
+      "language": "en",
+      "difficulty": 2,
+      "phrase": "A painted bridge of light that appears after a summer storm",
+      "targetWord": "rainbow",
+      "acceptedWords": ["rainbow", "arc of colors", "color arc", "spectrum arch"],
+      "hint": "Needs sun and rain"
     },
     {
-      "phrase": "A large body of water surrounded by land",
-      "targetWord": "lake",
-      "difficulty": 1
-    },
-    {
-      "phrase": "The natural satellite that orbits Earth",
-      "targetWord": "moon",
-      "difficulty": 1
-    },
-    {
-      "phrase": "A piece of furniture you sit on",
-      "targetWord": "chair",
-      "difficulty": 1
-    },
-    {
-      "phrase": "A hot beverage made from roasted beans",
-      "targetWord": "coffee",
-      "difficulty": 1
-    },
-    {
-      "phrase": "A device used to tell time",
-      "targetWord": "clock",
-      "difficulty": 1
-    },
-    {
-      "phrase": "A structure built for people to live in",
-      "targetWord": "house",
-      "difficulty": 1
-    },
-    {
-      "phrase": "The star at the center of our solar system",
-      "targetWord": "sun",
-      "difficulty": 1
-    },
-    {
-      "phrase": "A wheeled vehicle used for transportation",
-      "targetWord": "car",
-      "difficulty": 1
-    },
-    {
-      "phrase": "A constant ringing or buzzing sound in the ears",
-      "targetWord": "tinnitus",
-      "difficulty": 2
-    },
-    {
-      "phrase": "The fear of being in crowded or enclosed spaces",
-      "targetWord": "claustrophobia",
-      "difficulty": 2
-    },
-    {
-      "phrase": "A word or phrase that reads the same backward as forward",
+      "language": "en",
+      "difficulty": 3,
+      "phrase": "A word that reads identically in a mirror and in a window",
       "targetWord": "palindrome",
-      "difficulty": 2
+      "acceptedWords": ["palindrome", "mirror word", "reversible word", "symmetrical word"],
+      "hint": "Level and radar qualify"
     },
     {
-      "phrase": "The practice of eating only plant-based foods",
-      "targetWord": "vegetarian",
-      "difficulty": 2
+      "language": "en",
+      "difficulty": 4,
+      "phrase": "Plants use this sun-powered alchemy to bottle food from thin air",
+      "targetWord": "photosynthesis",
+      "acceptedWords": ["photosynthesis", "plant alchemy", "sun-made sugar", "chlorophyll cycle"],
+      "hint": "Chlorophyll is the star"
     },
     {
-      "phrase": "A person who studies ancient civilizations through artifacts",
-      "targetWord": "archaeologist",
-      "difficulty": 2
-    },
-    {
-      "phrase": "The ability to understand and share the feelings of another",
-      "targetWord": "empathy",
-      "difficulty": 2
-    },
-    {
-      "phrase": "A temporary trend or enthusiasm",
-      "targetWord": "fad",
-      "difficulty": 2
-    },
-    {
-      "phrase": "Relating to the sense of smell",
-      "targetWord": "olfactory",
-      "difficulty": 2
-    },
-    {
-      "phrase": "A period of one thousand years",
-      "targetWord": "millennium",
-      "difficulty": 2
-    },
-    {
-      "phrase": "The quality of being unclear or having multiple meanings",
-      "targetWord": "ambiguity",
-      "difficulty": 2
-    },
-    {
-      "phrase": "The fear of long words",
+      "language": "en",
+      "difficulty": 5,
+      "phrase": "A comically long name for an intense fear of comically long names",
       "targetWord": "hippopotomonstrosesquippedaliophobia",
-      "difficulty": 3
+      "acceptedWords": ["hippopotomonstrosesquippedaliophobia", "fear of long words", "sesquipedalophobia", "long word phobia"],
+      "hint": "Ironic phobia of lengthy words"
     },
     {
-      "phrase": "A brief statement or account of the main points",
-      "targetWord": "synopsis",
-      "difficulty": 3
+      "language": "es",
+      "difficulty": 1,
+      "phrase": "Un compañero lleno de historias que abres antes de dormir",
+      "targetWord": "libro",
+      "acceptedWords": ["libro", "texto", "ejemplar", "tomo"],
+      "hint": "Tiene hojas sin árbol"
     },
     {
-      "phrase": "The philosophical study of the nature of being",
-      "targetWord": "ontology",
-      "difficulty": 3
+      "language": "es",
+      "difficulty": 2,
+      "phrase": "Un cielo enfadado que retumba y lanza chorros de luz",
+      "targetWord": "tormenta",
+      "acceptedWords": ["tormenta", "tempestad", "chaparrón", "ciclón"],
+      "hint": "Viene con truenos"
     },
     {
-      "phrase": "Existing in thought but not in reality",
-      "targetWord": "hypothetical",
-      "difficulty": 3
+      "language": "es",
+      "difficulty": 3,
+      "phrase": "Una palabra que se refleja igual al derecho y al revés",
+      "targetWord": "palíndromo",
+      "acceptedWords": ["palíndromo", "palindromo", "palabra espejo", "palabra simétrica"],
+      "hint": "Ejemplo: reconocer"
     },
     {
-      "phrase": "The use of many words where fewer would suffice",
-      "targetWord": "circumlocution",
-      "difficulty": 3
+      "language": "es",
+      "difficulty": 4,
+      "phrase": "La receta solar con la que las plantas crean su propio alimento",
+      "targetWord": "fotosíntesis",
+      "acceptedWords": ["fotosíntesis", "fotosintesis", "proceso clorofílico", "síntesis solar"],
+      "hint": "Verde + sol = energía"
     },
     {
-      "phrase": "A person who claims to know nothing",
-      "targetWord": "agnostic",
-      "difficulty": 3
-    },
-    {
-      "phrase": "The study of the origin and history of words",
-      "targetWord": "etymology",
-      "difficulty": 3
-    },
-    {
-      "phrase": "Happening at irregular intervals or only in a few places",
-      "targetWord": "sporadic",
-      "difficulty": 3
-    },
-    {
-      "phrase": "A person skilled in formal speaking or debate",
-      "targetWord": "orator",
-      "difficulty": 3
-    },
-    {
-      "phrase": "The attribution of human characteristics to non-human things",
-      "targetWord": "anthropomorphism",
-      "difficulty": 3
+      "language": "es",
+      "difficulty": 5,
+      "phrase": "Un término larguísimo para describir miedo a términos larguísimos",
+      "targetWord": "hipopotomonstrosesquipedaliofobia",
+      "acceptedWords": ["hipopotomonstrosesquipedaliofobia", "miedo a palabras largas", "sesquipedaliofobia"],
+      "hint": "La palabra es casi un trabalenguas"
     }
   ]
 }

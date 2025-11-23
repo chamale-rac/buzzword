@@ -1,10 +1,12 @@
+using System;
 using System.Collections;
+using System.Text;
 using UnityEngine;
 using TMPro;
 using UnityEngine.UI;
 
 /// <summary>
-/// WordPromptManager - Manages word prompts, guessing, and scoring for gameplay
+/// WordPromptManager - Manages endless prompts, local scoring, and bilingual UI feedback.
 /// </summary>
 public class WordPromptManager : MonoBehaviour
 {
@@ -23,7 +25,7 @@ public class WordPromptManager : MonoBehaviour
     [SerializeField] private TextMeshProUGUI resultMessage;
     [SerializeField] private TextMeshProUGUI pointsEarnedText;
     [SerializeField] private TextMeshProUGUI totalScoreText;
-    [SerializeField] private TextMeshProUGUI topWordsText; // Para mostrar top 10 palabras de Datamuse
+    [SerializeField] private TextMeshProUGUI topWordsText; // Displays accepted answers list
     [SerializeField] private Button nextButton;
     [SerializeField] private Button menuButton;
 
@@ -39,6 +41,7 @@ public class WordPromptManager : MonoBehaviour
 
     private PhraseResult currentPhrase;
     private float timeRemaining;
+    private float roundTimeLimit;
     private bool roundActive = false;
     private bool hasAnswered = false;
 
@@ -58,23 +61,13 @@ public class WordPromptManager : MonoBehaviour
 
     private void InitializeUI()
     {
-        if (submitButton != null)
-            submitButton.onClick.AddListener(OnSubmitGuess);
+        submitButton?.onClick.AddListener(OnSubmitGuess);
+        nextButton?.onClick.AddListener(OnNextRound);
+        menuButton?.onClick.AddListener(OnReturnToMenu);
+        hintButton?.onClick.AddListener(OnRequestHint);
 
-        if (nextButton != null)
-            nextButton.onClick.AddListener(OnNextRound);
-
-        if (menuButton != null)
-            menuButton.onClick.AddListener(OnReturnToMenu);
-
-        if (hintButton != null)
-            hintButton.onClick.AddListener(OnRequestHint);
-
-        if (resultPanel != null)
-            resultPanel.SetActive(false);
-
-        if (loadingPanel != null)
-            loadingPanel.SetActive(false);
+        resultPanel?.SetActive(false);
+        loadingPanel?.SetActive(false);
 
         if (hintText != null)
             hintText.gameObject.SetActive(false);
@@ -85,16 +78,21 @@ public class WordPromptManager : MonoBehaviour
     private void StartNewRound()
     {
         hasAnswered = false;
+        roundActive = false;
         hintsUsed = 0;
-        
+        roundTimeLimit = 0f;
+        timeRemaining = 0f;
+
         if (hintText != null)
             hintText.gameObject.SetActive(false);
 
         if (hintButton != null)
             hintButton.interactable = true;
 
-        if (resultPanel != null)
-            resultPanel.SetActive(false);
+        resultPanel?.SetActive(false);
+
+        if (topWordsText != null)
+            topWordsText.text = "";
 
         if (guessInputField != null)
         {
@@ -109,15 +107,7 @@ public class WordPromptManager : MonoBehaviour
             feedbackText.text = "";
 
         UpdateLevelInfo();
-        
-        // Generate new phrase
-        if (loadingPanel != null)
-        {
-            loadingPanel.SetActive(true);
-            if (loadingText != null)
-                loadingText.text = "Generating phrase...";
-        }
-
+        SetLoadingPanel(true, Localize("Generating clue...", "Generando pista..."));
         StartCoroutine(GenerateNewPhrase());
     }
 
@@ -125,28 +115,25 @@ public class WordPromptManager : MonoBehaviour
     {
         if (GameManager.Instance == null)
         {
-            Debug.LogError("GameManager.Instance is null - cannot generate phrase");
-            if (loadingPanel != null)
-                loadingPanel.SetActive(false);
+            Debug.LogError("GameManager missing - cannot request phrase.");
+            SetLoadingPanel(false, string.Empty);
             yield break;
         }
 
-        int difficulty = GameManager.Instance.currentLevel;
+        int difficulty = GameManager.Instance.GetDifficultyTier();
+        string languageCode = GameManager.Instance.GetLanguageCode();
         bool phraseReceived = false;
 
-        APIManager.Instance.GeneratePhrase(difficulty, (result) =>
+        APIManager.Instance.GeneratePhrase(difficulty, languageCode, result =>
         {
             currentPhrase = result;
             phraseReceived = true;
 
-            if (phraseText != null)
+            if (phraseText != null && result != null)
                 phraseText.text = result.phrase;
-
-            Debug.Log($"Phrase generated: {result.phrase} (Target: {result.targetWord})");
         });
 
-        // Wait for phrase to be received with extended timeout
-        float timeout = 35f; // Match the API timeout + buffer
+        float timeout = 35f;
         float elapsed = 0f;
         while (!phraseReceived && elapsed < timeout)
         {
@@ -154,40 +141,34 @@ public class WordPromptManager : MonoBehaviour
             yield return null;
         }
 
-        if (!phraseReceived)
+        if (!phraseReceived || currentPhrase == null)
         {
-            Debug.LogError("Failed to generate phrase - timeout after waiting for API response");
+            Debug.LogError("Failed to generate phrase - API timeout.");
             if (feedbackText != null)
-                feedbackText.text = "Error loading phrase. Please try again.";
-            
-            // Disable loading panel even on error
-            if (loadingPanel != null)
-                loadingPanel.SetActive(false);
-            
+                feedbackText.text = Localize("Error loading clue. Please try again.", "No se pudo cargar la pista. Intenta de nuevo.");
+
+            SetLoadingPanel(false, string.Empty);
             yield break;
         }
 
-        if (loadingPanel != null)
-            loadingPanel.SetActive(false);
+        SetLoadingPanel(false, string.Empty);
 
-        // Start timer
-        if (GameManager.Instance != null)
-        {
-            timeRemaining = GameManager.Instance.GetCurrentTimeLimit();
-            roundActive = true;
-        }
+        roundTimeLimit = GameManager.Instance.GetCurrentTimeLimit();
+        timeRemaining = roundTimeLimit;
+        roundActive = true;
+        UpdateTimerLabel();
     }
 
     private void OnSubmitGuess()
     {
-        if (!roundActive || hasAnswered || guessInputField == null) return;
+        if (!roundActive || hasAnswered || guessInputField == null || currentPhrase == null)
+            return;
 
         string guess = guessInputField.text.Trim();
-
         if (string.IsNullOrEmpty(guess))
         {
             if (feedbackText != null)
-                feedbackText.text = "Please enter a word!";
+                feedbackText.text = Localize("Please enter a word!", "¡Ingresa una palabra!");
             return;
         }
 
@@ -200,116 +181,75 @@ public class WordPromptManager : MonoBehaviour
         if (guessInputField != null)
             guessInputField.interactable = false;
 
-        if (loadingPanel != null)
-        {
-            loadingPanel.SetActive(true);
-            if (loadingText != null)
-                loadingText.text = "Checking answer...";
-        }
+        float responseTime = Mathf.Clamp(roundTimeLimit - Mathf.Max(0f, timeRemaining), 0f, roundTimeLimit > 0f ? roundTimeLimit : 999f);
+        float timeCap = roundTimeLimit > 0f ? roundTimeLimit : Mathf.Max(1f, responseTime);
 
-        StartCoroutine(CheckGuess(guess));
-    }
-
-    private IEnumerator CheckGuess(string guess)
-    {
-        bool resultReceived = false;
-        MatchResult matchResult = null;
-
-        APIManager.Instance.CheckWordMatch(currentPhrase.phrase, guess, (result) =>
-        {
-            matchResult = result;
-            resultReceived = true;
-        });
-
-        // Wait for result with extended timeout
-        float timeout = 20f; // Match the API timeout + buffer
-        float elapsed = 0f;
-        while (!resultReceived && elapsed < timeout)
-        {
-            elapsed += Time.deltaTime;
-            yield return null;
-        }
-
-        if (loadingPanel != null)
-            loadingPanel.SetActive(false);
-
-        if (resultReceived && matchResult != null)
-        {
-            ProcessResult(matchResult, guess);
-        }
-        else
-        {
-            Debug.LogError("Failed to check word match - timeout");
-            if (feedbackText != null)
-                feedbackText.text = "Error checking answer. Please try again.";
-        }
+        MatchResult matchResult = APIManager.Instance.EvaluateGuess(currentPhrase, guess, responseTime, timeCap);
+        ProcessResult(matchResult, guess);
     }
 
     private void ProcessResult(MatchResult result, string guess)
     {
-        // Add score
         if (GameManager.Instance != null)
-            GameManager.Instance.AddScore(result.points);
+            GameManager.Instance.RegisterRound(result);
 
-        // Play sound
+        if (feedbackText != null)
+            feedbackText.text = result.message;
+
         if (result.matched)
-        {
-            if (AudioManager.Instance != null)
-                AudioManager.Instance.PlayCorrectAnswer();
-        }
+            AudioManager.Instance?.PlayCorrectAnswer();
         else
-        {
-            if (AudioManager.Instance != null)
-                AudioManager.Instance.PlayWrongAnswer();
-        }
+            AudioManager.Instance?.PlayWrongAnswer();
 
-        // Show result panel
         ShowResultPanel(result, guess);
     }
 
     private void ShowResultPanel(MatchResult result, string guess)
     {
-        if (resultPanel != null)
-            resultPanel.SetActive(true);
+        resultPanel?.SetActive(true);
+
+        string displayedGuess = string.IsNullOrWhiteSpace(guess) ? Localize("No guess", "Sin respuesta") : guess;
 
         if (resultMessage != null)
         {
             if (result.matched)
             {
-                resultMessage.text = $"<b>{result.rank} Match!</b>\n\nYou guessed: <b>{guess}</b>";
+                resultMessage.text = $"{result.message}\n\n{Localize("You guessed", "Respondiste")}: <b>{displayedGuess}</b>";
             }
             else
             {
-                resultMessage.text = $"<b>No Match</b>\n\nYou guessed: <b>{guess}</b>\n\n{result.message}";
+                resultMessage.text = $"{Localize("No match", "Sin coincidencia")}\n\n{Localize("You guessed", "Respondiste")}: <b>{displayedGuess}</b>\n{result.message}";
             }
         }
 
         if (pointsEarnedText != null)
-            pointsEarnedText.text = $"+{result.points} points";
+        {
+            pointsEarnedText.text = $"{Localize("Total", "Total")}: +{result.points} ({Localize("Base", "Base")} {result.basePoints} + {Localize("Speed", "Velocidad")} {result.speedBonus})";
+        }
 
         if (totalScoreText != null && GameManager.Instance != null)
-            totalScoreText.text = $"Total Score: {GameManager.Instance.totalScore}";
-
-        // Mostrar top 10 palabras según Datamuse
-        if (topWordsText != null && result.topWords != null && result.topWords.Length > 0)
         {
-            string topWordsDisplay = "<b>Best Answers (Datamuse):</b>\n\n";
-            for (int i = 0; i < result.topWords.Length; i++)
-            {
-                // Usar números incluso para top 3 (sin emojis)
-                string prefix = $"{i + 1}.";
+            totalScoreText.text = $"{Localize("Total Score", "Puntaje total")}: {GameManager.Instance.totalScore}";
+        }
 
-                // Resaltar si es la palabra que adivinó el usuario
-                if (result.topWords[i].ToLower() == guess.ToLower())
-                {
-                    topWordsDisplay += $"{prefix} <color=yellow><b>{result.topWords[i]}</b> ← Your guess!</color>\n";
-                }
+        if (topWordsText != null && result.acceptedWords != null && result.acceptedWords.Length > 0)
+        {
+            StringBuilder builder = new StringBuilder();
+            builder.AppendLine($"<b>{Localize("Accepted answers", "Respuestas válidas")}:</b>\n");
+
+            for (int i = 0; i < result.acceptedWords.Length; i++)
+            {
+                string entry = result.acceptedWords[i];
+                bool highlight = !string.IsNullOrWhiteSpace(guess) &&
+                                 entry.Equals(guess, StringComparison.OrdinalIgnoreCase);
+
+                if (highlight)
+                    builder.AppendLine($"{i + 1}. <color=yellow><b>{entry}</b></color>");
                 else
-                {
-                    topWordsDisplay += $"{prefix} {result.topWords[i]}\n";
-                }
+                    builder.AppendLine($"{i + 1}. {entry}");
             }
-            topWordsText.text = topWordsDisplay;
+
+            topWordsText.text = builder.ToString();
         }
         else if (topWordsText != null)
         {
@@ -321,107 +261,54 @@ public class WordPromptManager : MonoBehaviour
 
     private void OnNextRound()
     {
-        if (AudioManager.Instance != null)
-            AudioManager.Instance.PlayButtonClick();
-
-        if (GameManager.Instance == null)
-        {
-            Debug.LogError("GameManager.Instance is null - cannot proceed to next round");
-            return;
-        }
-
-        GameManager.Instance.NextRound();
-
-        if (GameManager.Instance.IsLevelComplete())
-        {
-            OnLevelComplete();
-        }
-        else
-        {
-            StartNewRound();
-        }
-    }
-
-    private void OnLevelComplete()
-    {
-        if (AudioManager.Instance != null)
-            AudioManager.Instance.PlayLevelComplete();
-
-        if (GameManager.Instance == null)
-        {
-            Debug.LogError("GameManager.Instance is null - cannot complete level");
-            return;
-        }
-
-        if (GameManager.Instance.IsGameComplete())
-        {
-            // All levels complete - return to menu
-            OnReturnToMenu();
-        }
-        else
-        {
-            // Load next level
-            GameManager.Instance.NextLevel();
-            if (SceneLoader.Instance != null)
-                SceneLoader.Instance.LoadLevel(GameManager.Instance.currentLevel);
-        }
+        AudioManager.Instance?.PlayButtonClick();
+        StartNewRound();
     }
 
     private void OnReturnToMenu()
     {
-        if (AudioManager.Instance != null)
-            AudioManager.Instance.PlayButtonClick();
-
-        if (SceneLoader.Instance != null)
-            SceneLoader.Instance.LoadMainMenu();
+        AudioManager.Instance?.PlayButtonClick();
+        SceneLoader.Instance?.LoadMainMenu();
     }
 
     private void OnRequestHint()
     {
-        if (hintsUsed >= maxHints || !roundActive || hasAnswered) return;
+        if (hintsUsed >= maxHints || !roundActive || hasAnswered || currentPhrase == null)
+            return;
 
         hintsUsed++;
 
         if (hintText != null)
         {
             hintText.gameObject.SetActive(true);
-            
-            if (hintsUsed == 1)
+            string hintLabel = Localize("Hint", "Pista");
+
+            if (hintsUsed == 1 && !string.IsNullOrEmpty(currentPhrase.hint))
             {
-                // First hint: show word length
-                hintText.text = $"Hint: The word has {currentPhrase.targetWord.Length} letters";
+                hintText.text = $"{hintLabel}: {currentPhrase.hint}";
             }
-            else if (hintsUsed == 2)
+            else if (hintsUsed == 1)
             {
-                // Second hint: show first letter
-                hintText.text = $"Hint: The word starts with '{currentPhrase.targetWord[0].ToString().ToUpper()}'";
+                int length = string.IsNullOrEmpty(currentPhrase.targetWord) ? 0 : currentPhrase.targetWord.Length;
+                hintText.text = $"{hintLabel}: {Localize($"The word has {length} letters", $"La palabra tiene {length} letras")}";
+            }
+            else
+            {
+                char firstLetter = (!string.IsNullOrEmpty(currentPhrase.targetWord) ? char.ToUpper(currentPhrase.targetWord[0]) : '?');
+                hintText.text = $"{hintLabel}: {Localize($"It starts with '{firstLetter}'", $"Empieza con '{firstLetter}'")}";
             }
         }
 
         if (hintsUsed >= maxHints && hintButton != null)
-        {
             hintButton.interactable = false;
-        }
 
-        if (AudioManager.Instance != null)
-            AudioManager.Instance.PlayButtonClick();
+        AudioManager.Instance?.PlayButtonClick();
     }
 
     private void UpdateTimer()
     {
         timeRemaining -= Time.deltaTime;
-
-        if (timerText != null)
-        {
-            int seconds = Mathf.CeilToInt(timeRemaining);
-            timerText.text = $"Time: {seconds}s";
-
-            // Color warning
-            if (timeRemaining < 10f)
-                timerText.color = Color.red;
-            else
-                timerText.color = Color.white;
-        }
+        UpdateTimerLabel();
 
         if (timeRemaining <= 0f)
         {
@@ -441,20 +328,12 @@ public class WordPromptManager : MonoBehaviour
             guessInputField.interactable = false;
 
         if (feedbackText != null)
-            feedbackText.text = "Time's up!";
+            feedbackText.text = Localize("Time's up!", "¡Se acabó el tiempo!");
 
-        if (AudioManager.Instance != null)
-            AudioManager.Instance.PlayWrongAnswer();
+        AudioManager.Instance?.PlayWrongAnswer();
 
-        // Show result with 0 points
-        MatchResult timeoutResult = new MatchResult
-        {
-            matched = false,
-            points = 0,
-            message = "Time ran out!"
-        };
-
-        ShowResultPanel(timeoutResult, "");
+        MatchResult timeoutResult = APIManager.Instance.BuildTimeoutResult(currentPhrase, roundTimeLimit);
+        ProcessResult(timeoutResult, string.Empty);
     }
 
     private void UpdateLevelInfo()
@@ -466,10 +345,10 @@ public class WordPromptManager : MonoBehaviour
         }
 
         if (levelText != null)
-            levelText.text = $"Level {GameManager.Instance.currentLevel}";
+            levelText.text = $"{Localize("Difficulty", "Dificultad")}: {GameManager.Instance.GetDifficultyLabel()}";
 
         if (roundText != null)
-            roundText.text = $"Round {GameManager.Instance.currentRound + 1}/{GameManager.Instance.roundsPerLevel}";
+            roundText.text = $"{Localize("Round", "Ronda")}: {GameManager.Instance.roundsCompleted + 1}";
 
         UpdateScoreDisplay();
     }
@@ -477,13 +356,36 @@ public class WordPromptManager : MonoBehaviour
     private void UpdateScoreDisplay()
     {
         if (GameManager.Instance == null)
-        {
-            Debug.LogWarning("GameManager.Instance is null - cannot update score");
             return;
-        }
 
         if (scoreText != null)
-            scoreText.text = $"Score: {GameManager.Instance.totalScore}";
+            scoreText.text = $"{Localize("Score", "Puntaje")}: {GameManager.Instance.totalScore}\n{Localize("Rounds", "Rondas")}: {GameManager.Instance.roundsCompleted}";
+    }
+
+    private void SetLoadingPanel(bool active, string message)
+    {
+        if (loadingPanel != null)
+            loadingPanel.SetActive(active);
+
+        if (loadingText != null)
+            loadingText.text = message;
+    }
+
+    private void UpdateTimerLabel()
+    {
+        if (timerText == null)
+            return;
+
+        int seconds = Mathf.Max(0, Mathf.CeilToInt(timeRemaining));
+        timerText.text = $"{Localize("Time", "Tiempo")}: {seconds}s";
+        timerText.color = timeRemaining < 10f ? Color.red : Color.white;
+    }
+
+    private string Localize(string english, string spanish)
+    {
+        return GameManager.Instance != null && GameManager.Instance.CurrentLanguage == GameLanguage.Spanish
+            ? spanish
+            : english;
     }
 }
 

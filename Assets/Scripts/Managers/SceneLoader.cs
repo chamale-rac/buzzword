@@ -27,6 +27,9 @@ public class SceneLoader : MonoBehaviour
         "Almost there..."
     };
 
+    [Header("Scene Targets")]
+    [SerializeField] private string endlessSceneName = "Level1";
+
     private void Awake()
     {
         if (Instance == null)
@@ -188,11 +191,26 @@ public class SceneLoader : MonoBehaviour
     }
 
     /// <summary>
-    /// Load a specific level
+    /// Load the endless gameplay scene. Former level selection now redirects here.
+    /// </summary>
+    public void LoadEndlessMode()
+    {
+        if (string.IsNullOrEmpty(endlessSceneName))
+        {
+            Debug.LogError("Endless scene name not configured on SceneLoader.");
+            return;
+        }
+
+        LoadScene(endlessSceneName);
+    }
+
+    /// <summary>
+    /// Legacy method kept for compatibility. Ignores the level number and loads the endless scene.
     /// </summary>
     public void LoadLevel(int levelNumber)
     {
-        LoadScene($"Level{levelNumber}");
+        Debug.LogWarning($"LoadLevel({levelNumber}) is deprecated. Redirecting to endless mode.");
+        LoadEndlessMode();
     }
 
     /// <summary>

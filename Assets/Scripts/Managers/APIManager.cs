@@ -5,8 +5,7 @@ using UnityEngine;
 using UnityEngine.Networking;
 
 /// <summary>
-/// APIManager - Handles all API requests to Gemini and Datamuse
-/// Includes offline fallback data
+/// APIManager - Handles Gemini structured responses, offline fallbacks, and local scoring logic.
 /// </summary>
 public class APIManager : MonoBehaviour
 {
@@ -14,18 +13,19 @@ public class APIManager : MonoBehaviour
 
     [Header("API Configuration")]
     [SerializeField] private string geminiApiKey = "YOUR_GEMINI_API_KEY_HERE";
-    private const string GEMINI_ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent";
-    private const string DATAMUSE_ENDPOINT = "https://api.datamuse.com/words";
+    [SerializeField] private string geminiModel = "gemini-2.0-flash-exp";
+
+    private string GeminiEndpoint => $"https://generativelanguage.googleapis.com/v1beta/models/{geminiModel}:generateContent";
 
     [Header("Offline Mode")]
     [SerializeField] private bool useOfflineMode = false;
     [SerializeField] private TextAsset offlinePromptsJson;
 
-    private OfflineData offlineData;
-    
     [Header("Phrase History")]
-    private List<string> usedPhrases = new List<string>();
-    private const int MAX_HISTORY = 20; // Guardar las últimas 20 frases para evitar repetición
+    [SerializeField] private int maxHistory = 20;
+
+    private OfflineData offlineData;
+    private readonly List<string> usedPhrases = new();
 
     private void Awake()
     {
@@ -44,81 +44,74 @@ public class APIManager : MonoBehaviour
 
     private void LoadOfflineData()
     {
-        if (offlinePromptsJson != null)
+        if (offlinePromptsJson == null) return;
+
+        try
         {
-            try
-            {
-                offlineData = JsonUtility.FromJson<OfflineData>(offlinePromptsJson.text);
-                Debug.Log("Offline data loaded successfully");
-            }
-            catch (Exception e)
-            {
-                Debug.LogError($"Failed to load offline data: {e.Message}");
-            }
+            offlineData = JsonUtility.FromJson<OfflineData>(offlinePromptsJson.text);
+            Debug.Log("Offline data loaded successfully");
+        }
+        catch (Exception e)
+        {
+            Debug.LogError($"Failed to load offline data: {e.Message}");
         }
     }
 
-    /// <summary>
-    /// Generate a phrase for a given difficulty level using Gemini API
-    /// </summary>
-    public void GeneratePhrase(int difficulty, Action<PhraseResult> callback)
+    public void GeneratePhrase(int difficultyTier, string languageCode, Action<PhraseResult> callback)
     {
-        StartCoroutine(GeneratePhraseCoroutine(difficulty, callback));
+        StartCoroutine(GeneratePhraseCoroutine(Mathf.Max(1, difficultyTier), NormalizeLanguage(languageCode), callback));
     }
 
-    private IEnumerator GeneratePhraseCoroutine(int difficulty, Action<PhraseResult> callback)
+    private IEnumerator GeneratePhraseCoroutine(int difficultyTier, string languageCode, Action<PhraseResult> callback)
     {
         if (useOfflineMode || string.IsNullOrEmpty(geminiApiKey) || geminiApiKey == "YOUR_GEMINI_API_KEY_HERE")
         {
             Debug.Log("Using offline mode for phrase generation");
-            yield return GetOfflinePhrase(difficulty, callback);
+            yield return GetOfflinePhrase(difficultyTier, languageCode, callback);
             yield break;
         }
 
-        string prompt = GetPromptForDifficulty(difficulty);
-        string requestBody = CreateGeminiRequestBody(prompt, difficulty);
-
         bool shouldFallback = false;
+        string prompt = BuildPrompt(difficultyTier, languageCode);
+        string requestBody = CreateGeminiRequestBody(prompt);
 
-        using (UnityWebRequest request = new UnityWebRequest(GEMINI_ENDPOINT, "POST"))
+        using (UnityWebRequest request = new UnityWebRequest(GeminiEndpoint, "POST"))
         {
             byte[] bodyRaw = System.Text.Encoding.UTF8.GetBytes(requestBody);
             request.uploadHandler = new UploadHandlerRaw(bodyRaw);
             request.downloadHandler = new DownloadHandlerBuffer();
             request.SetRequestHeader("Content-Type", "application/json");
             request.SetRequestHeader("x-goog-api-key", geminiApiKey);
-            
-            // Set timeout to 30 seconds
             request.timeout = 30;
 
-            Debug.Log($"Sending request to Gemini API for difficulty {difficulty}...");
+            Debug.Log($"Sending request to Gemini API for difficulty {difficultyTier} ({languageCode})...");
             yield return request.SendWebRequest();
 
             if (request.result == UnityWebRequest.Result.Success)
             {
                 try
                 {
-                    Debug.Log($"Gemini API Response: {request.downloadHandler.text}");
                     GeminiResponse response = JsonUtility.FromJson<GeminiResponse>(request.downloadHandler.text);
-                    
-                    if (response.candidates != null && response.candidates.Length > 0)
+
+                    if (response?.candidates != null &&
+                        response.candidates.Length > 0 &&
+                        response.candidates[0].content?.parts != null &&
+                        response.candidates[0].content.parts.Length > 0)
                     {
-                        string phraseText = response.candidates[0].content.parts[0].text;
-                        
-                        // Extract target word and phrase from Gemini response
-                        PhraseResult result = ParseGeminiResponse(phraseText);
+                        string payload = response.candidates[0].content.parts[0].text;
+                        PhraseResult result = ParseGeminiResponse(payload, difficultyTier, languageCode);
                         callback?.Invoke(result);
-                        Debug.Log($"Successfully generated phrase: {result.phrase} -> {result.targetWord}");
+                        Debug.Log($"Phrase generated: {result.phrase} -> {result.targetWord} ({languageCode})");
                     }
                     else
                     {
-                        Debug.LogError("Gemini response has no candidates");
+                        Debug.LogError("Gemini response missing content");
                         shouldFallback = true;
                     }
                 }
-                catch (Exception e)
+                catch (Exception ex)
                 {
-                    Debug.LogError($"Error parsing Gemini response: {e.Message}\nResponse: {request.downloadHandler.text}");
+                    Debug.LogError($"Error parsing Gemini response: {ex.Message}\nPayload: {request.downloadHandler.text}");
                     shouldFallback = true;
                 }
             }
@@ -127,7 +120,7 @@ public class APIManager : MonoBehaviour
                 Debug.LogError($"Gemini API Error: {request.error}\nResponse Code: {request.responseCode}");
                 if (request.downloadHandler != null && !string.IsNullOrEmpty(request.downloadHandler.text))
                 {
-                    Debug.LogError($"Error details: {request.downloadHandler.text}");
+                    Debug.LogError($"Body: {request.downloadHandler.text}");
                 }
                 shouldFallback = true;
             }
@@ -136,381 +129,532 @@ public class APIManager : MonoBehaviour
         if (shouldFallback)
         {
             Debug.Log("Falling back to offline phrase generation");
-            yield return GetOfflinePhrase(difficulty, callback);
+            yield return GetOfflinePhrase(difficultyTier, languageCode, callback);
         }
     }
 
-    /// <summary>
-    /// Check if a guessed word matches the target phrase using Datamuse API
-    /// </summary>
-    public void CheckWordMatch(string phrase, string guessedWord, Action<MatchResult> callback)
+    public MatchResult EvaluateGuess(PhraseResult phrase, string guess, float responseTime, float roundTimeLimit)
     {
-        StartCoroutine(CheckWordMatchCoroutine(phrase, guessedWord, callback));
-    }
-
-    private IEnumerator CheckWordMatchCoroutine(string phrase, string guessedWord, Action<MatchResult> callback)
-    {
-        string url = $"{DATAMUSE_ENDPOINT}?ml={UnityWebRequest.EscapeURL(phrase)}&max=50";
-
-        using (UnityWebRequest request = UnityWebRequest.Get(url))
+        if (phrase == null)
         {
-            request.timeout = 15; // 15 second timeout
-            
-            yield return request.SendWebRequest();
+            return new MatchResult
+            {
+                matched = false,
+                positionIndex = -1,
+                basePoints = 0,
+                speedBonus = 0,
+                points = 0,
+                responseTime = responseTime,
+                matchedWord = string.Empty,
+                message = "No phrase available",
+                acceptedWords = Array.Empty<string>()
+            };
+        }
 
-            if (request.result == UnityWebRequest.Result.Success)
+        string[] answers = phrase.acceptedWords != null && phrase.acceptedWords.Length > 0
+            ? phrase.acceptedWords
+            : new[] { phrase.targetWord };
+
+        string normalizedGuess = NormalizeWord(guess);
+        int positionIndex = -1;
+
+        for (int i = 0; i < answers.Length; i++)
+        {
+            if (NormalizeWord(answers[i]) == normalizedGuess && !string.IsNullOrEmpty(normalizedGuess))
             {
-                try
-                {
-                    DatamuseWord[] words = JsonHelper.FromJson<DatamuseWord>(request.downloadHandler.text);
-                    MatchResult result = EvaluateMatch(words, guessedWord);
-                    callback?.Invoke(result);
-                }
-                catch (Exception e)
-                {
-                    Debug.LogError($"Error parsing Datamuse response: {e.Message}");
-                    callback?.Invoke(new MatchResult { matched = false, score = 0, points = 0, message = "API Error" });
-                }
-            }
-            else
-            {
-                Debug.LogError($"Datamuse API Error: {request.error}");
-                callback?.Invoke(new MatchResult { matched = false, score = 0, points = 0, message = "Network Error" });
+                positionIndex = i;
+                break;
             }
         }
+
+        int basePoints = CalculateBasePoints(positionIndex);
+        int speedBonus = positionIndex >= 0 ? CalculateSpeedBonus(responseTime, roundTimeLimit) : 0;
+        int totalPoints = Mathf.Max(0, basePoints + speedBonus);
+
+        return new MatchResult
+        {
+            matched = positionIndex >= 0,
+            positionIndex = positionIndex,
+            basePoints = basePoints,
+            speedBonus = speedBonus,
+            points = totalPoints,
+            responseTime = Mathf.Clamp(responseTime, 0f, roundTimeLimit),
+            matchedWord = positionIndex >= 0 ? answers[positionIndex] : guess,
+            message = BuildMatchMessage(positionIndex, phrase.languageCode),
+            acceptedWords = answers
+        };
     }
 
-    private IEnumerator GetOfflinePhrase(int difficulty, Action<PhraseResult> callback)
+    public MatchResult BuildTimeoutResult(PhraseResult phrase, float roundTimeLimit)
     {
-        if (offlineData != null && offlineData.prompts != null && offlineData.prompts.Length > 0)
+        string[] answers = phrase?.acceptedWords ?? Array.Empty<string>();
+        bool spanish = IsSpanish(phrase?.languageCode);
+        return new MatchResult
         {
-            // Filter prompts by difficulty
-            List<PromptData> filteredPrompts = new List<PromptData>();
-            foreach (var prompt in offlineData.prompts)
+            matched = false,
+            positionIndex = -1,
+            basePoints = 0,
+            speedBonus = 0,
+            points = 0,
+            responseTime = roundTimeLimit,
+            matchedWord = string.Empty,
+            message = spanish ? "¡Se acabó el tiempo!" : "Time ran out!",
+            acceptedWords = answers
+        };
+    }
+
+    private IEnumerator GetOfflinePhrase(int difficultyTier, string languageCode, Action<PhraseResult> callback)
+    {
+        PhraseResult result = null;
+
+        if (offlineData?.prompts != null && offlineData.prompts.Length > 0)
+        {
+            List<PromptData> filtered = new();
+            foreach (PromptData prompt in offlineData.prompts)
             {
-                if (prompt.difficulty == difficulty)
-                    filteredPrompts.Add(prompt);
+                if (prompt.difficulty == difficultyTier &&
+                    NormalizeLanguage(prompt.language) == languageCode)
+                {
+                    filtered.Add(prompt);
+                }
             }
 
-            if (filteredPrompts.Count > 0)
+            if (filtered.Count > 0)
             {
-                PromptData selected = filteredPrompts[UnityEngine.Random.Range(0, filteredPrompts.Count)];
-                callback?.Invoke(new PhraseResult
+                PromptData selected = filtered[UnityEngine.Random.Range(0, filtered.Count)];
+                List<string> answers = ComposeAnswerList(selected.targetWord, selected.acceptedWords);
+                result = new PhraseResult
                 {
                     phrase = selected.phrase,
                     targetWord = selected.targetWord,
-                    difficulty = difficulty
-                });
+                    acceptedWords = answers.ToArray(),
+                    languageCode = languageCode,
+                    difficulty = difficultyTier,
+                    hint = selected.hint
+                };
+            }
+        }
+
+        if (result == null)
+        {
+            Debug.LogWarning($"No offline prompts found for difficulty {difficultyTier} ({languageCode}). Using default fallback.");
+            result = GetDefaultPhrase(difficultyTier, languageCode);
+        }
+
+        callback?.Invoke(result);
+        yield return null;
+    }
+
+    private PhraseResult GetDefaultPhrase(int difficultyTier, string languageCode)
+    {
+        bool spanish = IsSpanish(languageCode);
+        int bucket = Mathf.Clamp(difficultyTier, 1, 6);
+
+        string phrase;
+        string target;
+        string hint;
+        string[] additionalAnswers;
+
+        if (!spanish)
+        {
+            if (bucket <= 2)
+            {
+                phrase = "A fluffy pet that purrs when you scratch its chin";
+                target = "cat";
+                hint = "House companion that chases laser dots";
+                additionalAnswers = new[] { "kitty", "feline", "housecat", "pet cat" };
+            }
+            else if (bucket <= 4)
+            {
+                phrase = "A word that reads the same forward and backward";
+                target = "palindrome";
+                hint = "Mirror-friendly vocabulary";
+                additionalAnswers = new[] { "mirrorword", "symmetrical word", "reversible word" };
             }
             else
             {
-                Debug.LogWarning($"No offline prompts found for difficulty {difficulty}");
-                callback?.Invoke(GetDefaultPhrase(difficulty));
+                phrase = "A dramatic fear sparked by towering, endless words";
+                target = "hippopotomonstrosesquippedaliophobia";
+                hint = "Ironically, it's the fear of long words";
+                additionalAnswers = new[] { "fear of long words", "longwordphobia", "sesquipedalophobia" };
             }
         }
         else
         {
-            callback?.Invoke(GetDefaultPhrase(difficulty));
+            if (bucket <= 2)
+            {
+                phrase = "Un felino doméstico que maúlla y adora las siestas al sol";
+                target = "gato";
+                hint = "Animal compañero que ronronea";
+                additionalAnswers = new[] { "gatito", "felino", "minino" };
+            }
+            else if (bucket <= 4)
+            {
+                phrase = "Una palabra que se lee igual de izquierda a derecha";
+                target = "palíndromo";
+                hint = "Ejemplo: reconocer";
+                additionalAnswers = new[] { "palindromo", "palabra simétrica", "palabra espejo" };
+            }
+            else
+            {
+                phrase = "Un miedo exagerado a palabras larguísimas y complicadas";
+                target = "hipopotomonstrosesquipedaliofobia";
+                hint = "Sí, describe temor a palabras largas";
+                additionalAnswers = new[] { "miedo a palabras largas", "sesquipedaliofobia" };
+            }
         }
-        yield return null;
-    }
 
-    private PhraseResult GetDefaultPhrase(int difficulty)
-    {
-        switch (difficulty)
+        List<string> answers = ComposeAnswerList(target, additionalAnswers);
+        return new PhraseResult
         {
-            case 1:
-                return new PhraseResult { phrase = "A domestic animal that purrs and meows", targetWord = "cat", difficulty = 1 };
-            case 2:
-                return new PhraseResult { phrase = "A constant ringing sound in your ears", targetWord = "tinnitus", difficulty = 2 };
-            case 3:
-                return new PhraseResult { phrase = "The fear of long words", targetWord = "hippopotomonstrosesquippedaliophobia", difficulty = 3 };
-            default:
-                return new PhraseResult { phrase = "A round object used in sports", targetWord = "ball", difficulty = 1 };
-        }
-    }
-
-    private string GetPromptForDifficulty(int difficulty)
-    {
-        // Agregar variedad con contextos diferentes
-        string[] contexts = new string[]
-        {
-            "describing an object or thing",
-            "describing an action or activity", 
-            "describing a feeling or emotion",
-            "describing a place or location",
-            "describing a concept or idea",
-            "describing a profession or job",
-            "describing an animal or creature",
-            "describing food or drink",
-            "describing weather or nature",
-            "describing technology or tools"
+            phrase = phrase,
+            targetWord = target,
+            acceptedWords = answers.ToArray(),
+            languageCode = languageCode,
+            difficulty = difficultyTier,
+            hint = hint
         };
-        
-        string randomContext = contexts[UnityEngine.Random.Range(0, contexts.Length)];
-        string avoidPhrasesInstruction = "";
-        
-        if (usedPhrases.Count > 0)
-        {
-            // Tomar últimas 5 frases para evitar
-            int takeCount = Mathf.Min(5, usedPhrases.Count);
-            List<string> recentPhrases = usedPhrases.GetRange(usedPhrases.Count - takeCount, takeCount);
-            avoidPhrasesInstruction = $" Do NOT generate phrases similar to these recent ones: {string.Join(", ", recentPhrases)}.";
-        }
-        
-        switch (difficulty)
-        {
-            case 1:
-                return $"Generate a simple, creative phrase {randomContext} that describes a common everyday word without saying the word itself. The word should be something most people know. Make it fun and varied!{avoidPhrasesInstruction}";
-            case 2:
-                return $"Generate a moderately challenging phrase {randomContext} that describes a less common word without saying the word itself. Be creative and use interesting descriptions!{avoidPhrasesInstruction}";
-            case 3:
-                return $"Generate a difficult, sophisticated phrase {randomContext} that describes an uncommon or technical word without saying the word itself. Make it intellectually challenging!{avoidPhrasesInstruction}";
-            default:
-                return $"Generate a creative phrase {randomContext} that describes a word without saying the word itself.{avoidPhrasesInstruction}";
-        }
     }
 
-    private string CreateGeminiRequestBody(string prompt, int difficulty)
-    {
-        // Using proper JSON schema for structured output as per Gemini documentation
-        // This ensures reliable, validated JSON responses
-        return $@"{{
-            ""contents"": [{{
-                ""parts"": [{{
-                    ""text"": ""{prompt.Replace("\"", "\\\"")}""
-                }}]
-            }}],
-            ""generationConfig"": {{
-                ""responseMimeType"": ""application/json"",
-                ""responseSchema"": {{
-                    ""type"": ""OBJECT"",
-                    ""properties"": {{
-                        ""targetWord"": {{
-                            ""type"": ""STRING"",
-                            ""description"": ""The word that the phrase is describing""
-                        }},
-                        ""phrase"": {{
-                            ""type"": ""STRING"",
-                            ""description"": ""A natural language description of the target word without using the word itself""
-                        }}
-                    }},
-                    ""required"": [""targetWord"", ""phrase""],
-                    ""propertyOrdering"": [""targetWord"", ""phrase""]
-                }},
-                ""temperature"": 0.9,
-                ""topP"": 0.95,
-                ""topK"": 40,
-                ""maxOutputTokens"": 256
-            }}
-        }}";
-    }
-
-    private PhraseResult ParseGeminiResponse(string responseText)
+    private PhraseResult ParseGeminiResponse(string responseText, int difficultyTier, string languageFallback)
     {
         try
         {
-            // Try to parse as JSON first
             GeminiPhraseData data = JsonUtility.FromJson<GeminiPhraseData>(responseText);
-            
-            // Agregar frase al historial
+            if (data == null || string.IsNullOrEmpty(data.phrase) || string.IsNullOrEmpty(data.targetWord))
+            {
+                throw new Exception("Structured response missing required fields");
+            }
+
             AddPhraseToHistory(data.phrase);
-            
+
+            List<string> answers = ComposeAnswerList(data.targetWord, data.synonyms);
+            string lang = string.IsNullOrEmpty(data.languageCode) ? languageFallback : NormalizeLanguage(data.languageCode);
+
             return new PhraseResult
             {
                 phrase = data.phrase,
                 targetWord = data.targetWord,
-                difficulty = GameManager.Instance.currentLevel
+                acceptedWords = answers.ToArray(),
+                languageCode = lang,
+                difficulty = difficultyTier,
+                hint = data.hint
             };
         }
-        catch
+        catch (Exception ex)
         {
-            // If not JSON, treat entire response as phrase
+            Debug.LogWarning($"Gemini response fallback triggered: {ex.Message}");
             AddPhraseToHistory(responseText);
-            
+
             return new PhraseResult
             {
                 phrase = responseText,
                 targetWord = "unknown",
-                difficulty = GameManager.Instance.currentLevel
+                acceptedWords = new[] { "unknown" },
+                languageCode = languageFallback,
+                difficulty = difficultyTier,
+                hint = string.Empty
             };
         }
     }
-    
+
     private void AddPhraseToHistory(string phrase)
     {
+        if (string.IsNullOrWhiteSpace(phrase)) return;
+
         usedPhrases.Add(phrase);
-        
-        // Mantener solo las últimas MAX_HISTORY frases
-        if (usedPhrases.Count > MAX_HISTORY)
+        if (usedPhrases.Count > maxHistory)
         {
             usedPhrases.RemoveAt(0);
         }
     }
 
-    private MatchResult EvaluateMatch(DatamuseWord[] words, string guessedWord)
+    private List<string> ComposeAnswerList(string primary, string[] additional)
     {
-        if (words == null || words.Length == 0)
+        HashSet<string> seen = new(StringComparer.OrdinalIgnoreCase);
+        List<string> answers = new();
+
+        void TryAdd(string value)
         {
-            return new MatchResult
-            {
-                matched = false,
-                score = 0,
-                points = 0,
-                message = "No matches found",
-                topWords = new string[] { }
-            };
+            string normalized = NormalizeWord(value);
+            if (string.IsNullOrEmpty(normalized) || seen.Contains(normalized))
+                return;
+
+            seen.Add(normalized);
+            answers.Add(value.Trim());
         }
 
-        // Obtener top 10 palabras (o menos si no hay suficientes)
-        int topCount = Mathf.Min(10, words.Length);
-        string[] topTen = new string[topCount];
-        for (int i = 0; i < topCount; i++)
-        {
-            topTen[i] = words[i].word;
-        }
+        TryAdd(primary);
 
-        guessedWord = guessedWord.ToLower().Trim();
-        int topScore = words[0].score;
-        
-        // Buscar coincidencia exacta
-        for (int i = 0; i < words.Length; i++)
+        if (additional != null)
         {
-            if (words[i].word.ToLower() == guessedWord)
+            foreach (string word in additional)
             {
-                // Calculate points: (guessScore / topScore) * 100
-                int points = Mathf.RoundToInt((float)words[i].score / topScore * 100);
-                
-                // Bonus si es top 3
-                if (i == 0) points += 20; // Bonus por palabra #1
-                else if (i == 1) points += 10; // Bonus por palabra #2
-                else if (i == 2) points += 5; // Bonus por palabra #3
-                
-                points = Mathf.Min(points, 100); // Cap a 100
-                
-                string rank = GetRankForPercentage(points);
-                
-                return new MatchResult
-                {
-                    matched = true,
-                    score = words[i].score,
-                    points = points,
-                    rank = rank,
-                    message = $"{rank} Match! +{points} points",
-                    topWords = topTen
-                };
+                TryAdd(word);
             }
         }
 
-        // No encontró coincidencia exacta - dar 0 puntos pero mostrar top 10
-        return new MatchResult
+        if (answers.Count == 0)
         {
-            matched = false,
-            score = 0,
-            points = 0,
-            message = "No match found!",
-            topWords = topTen
-        };
+            answers.Add("unknown");
+        }
+
+        return answers;
     }
 
-    private string GetRankForPercentage(int percentage)
+    private int CalculateBasePoints(int positionIndex)
     {
-        if (percentage >= 95) return "Perfect";
-        if (percentage >= 80) return "Excellent";
-        if (percentage >= 60) return "Great";
-        if (percentage >= 40) return "Good";
-        if (percentage >= 20) return "Fair";
-        return "Close";
+        if (positionIndex < 0)
+            return 0;
+
+        switch (positionIndex)
+        {
+            case 0: return 120;
+            case 1: return 105;
+            case 2: return 90;
+            case 3: return 75;
+            case 4: return 65;
+            default:
+                int deduction = (positionIndex - 4) * 5;
+                return Mathf.Max(30, 65 - deduction);
+        }
+    }
+
+    private int CalculateSpeedBonus(float responseTime, float roundTimeLimit)
+    {
+        if (roundTimeLimit <= 0f) return 0;
+
+        float remaining = Mathf.Max(0f, roundTimeLimit - responseTime);
+        float ratio = Mathf.Clamp01(remaining / roundTimeLimit);
+        return Mathf.RoundToInt(40f * ratio);
+    }
+
+    private string BuildMatchMessage(int positionIndex, string languageCode)
+    {
+        bool spanish = IsSpanish(languageCode);
+
+        if (positionIndex < 0)
+        {
+            return spanish ? "Sin coincidencias." : "No match.";
+        }
+
+        int place = positionIndex + 1;
+        return spanish ? $"¡Coincidencia #{place}!" : $"Match #{place}!";
+    }
+
+    private string BuildPrompt(int difficultyTier, string languageCode)
+    {
+        string lang = NormalizeLanguage(languageCode);
+        string difficultyDescription = DescribeDifficulty(difficultyTier, lang);
+        string languageName = GetLanguageName(lang);
+        string nativeLabel = GetNativeLanguageName(lang);
+        string[] contexts = GetContextOptions(lang);
+        string context = contexts[UnityEngine.Random.Range(0, contexts.Length)];
+        string avoid = BuildAvoidInstruction();
+
+        float creativity = GameManager.Instance != null ? GameManager.Instance.GetDifficultyMultiplier() : 1f;
+        string creativityNote = creativity > 1.5f
+            ? "Use layered metaphors and vivid imagery."
+            : "Keep wording approachable and playful.";
+
+        return $"You provide structured data for an endless word-guessing video game. " +
+               $"All text (phrase, hint, accepted words) must be written in {languageName} ({nativeLabel}). " +
+               $"Difficulty tier {difficultyTier} means {difficultyDescription}. {creativityNote} " +
+               $"Theme focus: {context}. Create a single clue phrase that never states the answer directly. " +
+               $"Return between 4 and 6 accepted answers: the canonical solution first, followed by likely synonyms, all lowercase and punctuation-free. " +
+               "Include a concise hint (<=80 characters). " +
+               $"Set languageCode to \"{lang}\". {avoid}";
+    }
+
+    private string DescribeDifficulty(int tier, string languageCode)
+    {
+        bool spanish = IsSpanish(languageCode);
+
+        if (tier <= 1)
+            return spanish ? "vocabulario cotidiano muy sencillo" : "very common everyday vocabulary";
+        if (tier == 2)
+            return spanish ? "palabras comunes con un toque creativo" : "routine words with a clever twist";
+        if (tier == 3)
+            return spanish ? "conceptos menos frecuentes que requieren contexto" : "less frequent concepts that need context";
+        if (tier == 4)
+            return spanish ? "terminología especializada o cultural" : "specialized or cultural terminology";
+
+        return spanish ? "palabras raras y retadoras que exigen deducción" : "rare, demanding words that require deduction";
+    }
+
+    private string[] GetContextOptions(string languageCode)
+    {
+        return IsSpanish(languageCode)
+            ? new[]
+            {
+                "describir un objeto cotidiano",
+                "describir una profesión interesante",
+                "describir una sensación o emoción",
+                "describir comida o bebida",
+                "describir fenómenos naturales",
+                "describir tecnología o ciencia"
+            }
+            : new[]
+            {
+                "describing a clever invention",
+                "describing an emotion or mood",
+                "describing a cultural tradition",
+                "describing a scientific concept",
+                "describing a place or landmark",
+                "describing a tactile sensation"
+            };
+    }
+
+    private string BuildAvoidInstruction()
+    {
+        if (usedPhrases.Count == 0) return string.Empty;
+
+        int takeCount = Mathf.Min(5, usedPhrases.Count);
+        List<string> recent = usedPhrases.GetRange(usedPhrases.Count - takeCount, takeCount);
+        return $"Avoid repeating phrases similar to: {string.Join("; ", recent)}.";
+    }
+
+    private string CreateGeminiRequestBody(string prompt)
+    {
+        string safePrompt = EscapeForJson(prompt);
+        return $@"{{
+    ""contents"": [{{
+        ""parts"": [{{
+            ""text"": ""{safePrompt}""
+        }}]
+    }}],
+    ""generationConfig"": {{
+        ""responseMimeType"": ""application/json"",
+        ""responseSchema"": {{
+            ""type"": ""OBJECT"",
+            ""properties"": {{
+                ""languageCode"": {{ ""type"": ""STRING"" }},
+                ""phrase"": {{ ""type"": ""STRING"" }},
+                ""targetWord"": {{ ""type"": ""STRING"" }},
+                ""synonyms"": {{
+                    ""type"": ""ARRAY"",
+                    ""items"": {{ ""type"": ""STRING"" }}
+                }},
+                ""hint"": {{ ""type"": ""STRING"" }}
+            }},
+            ""required"": [""languageCode"", ""phrase"", ""targetWord"", ""synonyms""]
+        }},
+        ""temperature"": 0.95,
+        ""topP"": 0.95,
+        ""topK"": 40,
+        ""maxOutputTokens"": 256,
+    }}
+}}";
+    }
+
+    private string EscapeForJson(string value)
+    {
+        if (string.IsNullOrEmpty(value)) return string.Empty;
+        return value.Replace("\\", "\\\\").Replace("\"", "\\\"");
+    }
+
+    private string NormalizeLanguage(string code)
+    {
+        return string.Equals(code, "es", StringComparison.OrdinalIgnoreCase) ? "es" : "en";
+    }
+
+    private static string NormalizeWord(string word)
+    {
+        return string.IsNullOrWhiteSpace(word) ? string.Empty : word.Trim().ToLowerInvariant();
+    }
+
+    private bool IsSpanish(string code)
+    {
+        return string.Equals(code, "es", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private string GetLanguageName(string code)
+    {
+        return IsSpanish(code) ? "Spanish" : "English";
+    }
+
+    private string GetNativeLanguageName(string code)
+    {
+        return IsSpanish(code) ? "español" : "English";
     }
 }
 
-// Data structures for API responses
-[System.Serializable]
+#region Data Structures
+
+[Serializable]
 public class GeminiResponse
 {
     public GeminiCandidate[] candidates;
 }
 
-[System.Serializable]
+[Serializable]
 public class GeminiCandidate
 {
     public GeminiContent content;
 }
 
-[System.Serializable]
+[Serializable]
 public class GeminiContent
 {
     public GeminiPart[] parts;
 }
 
-[System.Serializable]
+[Serializable]
 public class GeminiPart
 {
     public string text;
 }
 
-[System.Serializable]
+[Serializable]
 public class GeminiPhraseData
 {
-    public string targetWord;
+    public string languageCode;
     public string phrase;
+    public string targetWord;
+    public string[] synonyms;
+    public string hint;
 }
 
-[System.Serializable]
-public class DatamuseWord
-{
-    public string word;
-    public int score;
-    public string[] tags;
-}
-
-[System.Serializable]
+[Serializable]
 public class PhraseResult
 {
     public string phrase;
     public string targetWord;
+    public string[] acceptedWords;
+    public string languageCode;
     public int difficulty;
+    public string hint;
 }
 
-[System.Serializable]
+[Serializable]
 public class MatchResult
 {
     public bool matched;
-    public int score;
+    public int positionIndex;
+    public int basePoints;
+    public int speedBonus;
     public int points;
-    public string rank;
+    public float responseTime;
+    public string matchedWord;
     public string message;
-    public string[] topWords; // Top 10 palabras posibles según Datamuse
+    public string[] acceptedWords;
 }
 
-[System.Serializable]
+[Serializable]
 public class OfflineData
 {
     public PromptData[] prompts;
 }
 
-[System.Serializable]
+[Serializable]
 public class PromptData
 {
     public string phrase;
     public string targetWord;
+    public string[] acceptedWords;
+    public string hint;
+    public string language;
     public int difficulty;
 }
 
-// Helper class for JSON array deserialization
-public static class JsonHelper
-{
-    public static T[] FromJson<T>(string json)
-    {
-        string wrappedJson = "{\"array\":" + json + "}";
-        Wrapper<T> wrapper = JsonUtility.FromJson<Wrapper<T>>(wrappedJson);
-        return wrapper.array;
-    }
-
-    [System.Serializable]
-    private class Wrapper<T>
-    {
-        public T[] array;
-    }
-}
-
+#endregion

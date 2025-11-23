@@ -1,7 +1,13 @@
 using UnityEngine;
 
+public enum GameLanguage
+{
+    English,
+    Spanish
+}
+
 /// <summary>
-/// GameManager - Singleton that tracks game state, current level, and total score
+/// GameManager - Singleton that tracks endless game state, scoring, difficulty, and language
 /// Persists across scenes using DontDestroyOnLoad
 /// </summary>
 public class GameManager : MonoBehaviour
@@ -9,19 +15,21 @@ public class GameManager : MonoBehaviour
     public static GameManager Instance { get; private set; }
 
     [Header("Game State")]
-    public int currentLevel = 1;
     public int totalScore = 0;
     public int currentRoundScore = 0;
-    
-    [Header("Level Configuration")]
-    public int maxLevels = 3;
-    public int roundsPerLevel = 3;
-    public int currentRound = 0;
+    public int roundsCompleted = 0;
 
-    [Header("Difficulty Settings")]
-    public float level1TimeLimit = 60f;
-    public float level2TimeLimit = 45f;
-    public float level3TimeLimit = 30f;
+    [Header("Endless Mode Configuration")]
+    [SerializeField] private float baseTimeLimit = 55f;
+    [SerializeField] private float minTimeLimit = 18f;
+    [SerializeField] private float timeDecayPerRound = 1.5f;
+    [SerializeField] private int roundsPerDifficultyStep = 4;
+    [SerializeField] private int maxDifficultyTier = 6;
+    [SerializeField] private float difficultyRamp = 0.07f;
+
+    [Header("Language Settings")]
+    [SerializeField] private GameLanguage startingLanguage = GameLanguage.English;
+    public GameLanguage CurrentLanguage { get; private set; }
 
     private void Awake()
     {
@@ -30,7 +38,8 @@ public class GameManager : MonoBehaviour
         {
             Instance = this;
             DontDestroyOnLoad(gameObject);
-            Debug.Log("GameManager initialized");
+            CurrentLanguage = startingLanguage;
+            Debug.Log($"GameManager initialized (Language: {CurrentLanguage})");
         }
         else
         {
@@ -40,81 +49,89 @@ public class GameManager : MonoBehaviour
     }
 
     /// <summary>
-    /// Add score from current round
-    /// </summary>
-    public void AddScore(int points)
-    {
-        currentRoundScore = points;
-        totalScore += points;
-        Debug.Log($"Score added: {points}. Total score: {totalScore}");
-    }
-
-    /// <summary>
-    /// Proceed to the next level
-    /// </summary>
-    public void NextLevel()
-    {
-        currentRound = 0;
-        currentLevel++;
-        
-        if (currentLevel > maxLevels)
-        {
-            Debug.Log("All levels completed!");
-            currentLevel = maxLevels;
-        }
-        
-        Debug.Log($"Advanced to Level {currentLevel}");
-    }
-
-    /// <summary>
-    /// Proceed to next round in current level
-    /// </summary>
-    public void NextRound()
-    {
-        currentRound++;
-        Debug.Log($"Advanced to Round {currentRound} of Level {currentLevel}");
-    }
-
-    /// <summary>
     /// Reset the game state
     /// </summary>
     public void ResetGame()
     {
-        currentLevel = 1;
         totalScore = 0;
         currentRoundScore = 0;
-        currentRound = 0;
+        roundsCompleted = 0;
         Debug.Log("Game reset");
     }
 
     /// <summary>
-    /// Get time limit for current level
+    /// Register the outcome of a completed round
+    /// </summary>
+    public void RegisterRound(MatchResult result)
+    {
+        if (result == null) return;
+
+        currentRoundScore = Mathf.Max(0, result.points);
+        totalScore += currentRoundScore;
+        roundsCompleted++;
+        Debug.Log($"Round registered. Points: {currentRoundScore}. Total score: {totalScore}. Rounds: {roundsCompleted}");
+    }
+
+    /// <summary>
+    /// Get the dynamic difficulty tier derived from rounds completed
+    /// </summary>
+    public int GetDifficultyTier()
+    {
+        int step = Mathf.Max(1, roundsPerDifficultyStep);
+        int tier = 1 + Mathf.FloorToInt((float)roundsCompleted / step);
+        return Mathf.Clamp(tier, 1, maxDifficultyTier);
+    }
+
+    /// <summary>
+    /// Provide a friendly label for the current difficulty tier
+    /// </summary>
+    public string GetDifficultyLabel()
+    {
+        int tier = GetDifficultyTier();
+        bool spanish = CurrentLanguage == GameLanguage.Spanish;
+
+        return tier switch
+        {
+            1 => spanish ? "Calentamiento" : "Warm-up",
+            2 => spanish ? "Analítico" : "Thinker",
+            3 => spanish ? "Genio" : "Brainiac",
+            4 => spanish ? "Artífice verbal" : "Wordsmith",
+            5 => spanish ? "Maestro" : "Mastermind",
+            _ => spanish ? "Leyenda" : "Legend"
+        };
+    }
+
+    /// <summary>
+    /// Returns the current timer cap adjusted by progression.
     /// </summary>
     public float GetCurrentTimeLimit()
     {
-        switch (currentLevel)
-        {
-            case 1: return level1TimeLimit;
-            case 2: return level2TimeLimit;
-            case 3: return level3TimeLimit;
-            default: return level1TimeLimit;
-        }
+        float adjusted = baseTimeLimit - roundsCompleted * timeDecayPerRound;
+        return Mathf.Clamp(adjusted, minTimeLimit, baseTimeLimit);
     }
 
     /// <summary>
-    /// Check if current level is complete
+    /// Value between 1-? that increases steadily and can be used by API prompts.
     /// </summary>
-    public bool IsLevelComplete()
+    public float GetDifficultyMultiplier()
     {
-        return currentRound >= roundsPerLevel;
+        return 1f + roundsCompleted * difficultyRamp;
     }
 
-    /// <summary>
-    /// Check if all levels are complete
-    /// </summary>
-    public bool IsGameComplete()
+    public void SetLanguage(GameLanguage language)
     {
-        return currentLevel >= maxLevels && IsLevelComplete();
+        CurrentLanguage = language;
+        Debug.Log($"Language set to {language}");
+    }
+
+    public string GetLanguageCode()
+    {
+        return CurrentLanguage == GameLanguage.Spanish ? "es" : "en";
+    }
+
+    public string GetLanguageDisplayName()
+    {
+        return CurrentLanguage == GameLanguage.Spanish ? "Español" : "English";
     }
 }
 

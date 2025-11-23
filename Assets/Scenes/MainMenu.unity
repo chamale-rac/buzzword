@@ -5370,15 +5370,16 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: a30f18850259259439b8ef2ec0d4d899, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  currentLevel: 1
   totalScore: 0
   currentRoundScore: 0
-  maxLevels: 3
-  roundsPerLevel: 3
-  currentRound: 0
-  level1TimeLimit: 60
-  level2TimeLimit: 45
-  level3TimeLimit: 30
+  roundsCompleted: 0
+  baseTimeLimit: 55
+  minTimeLimit: 18
+  timeDecayPerRound: 1.5
+  roundsPerDifficultyStep: 4
+  maxDifficultyTier: 6
+  difficultyRamp: 0.07
+  startingLanguage: 0
 --- !u!114 &2229488594329458602
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -5566,6 +5567,7 @@ MonoBehaviour:
   - Preparing phrases...
   - Connecting to word database...
   - Almost there...
+  endlessSceneName: Level1
 --- !u!114 &4584939162550494360
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -5897,9 +5899,11 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 53ea30cae4fac204d9513a77e4da8b3d, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  geminiApiKey: AIzaSyDMX39XzQRvOrMluv-r0Fsi10_UhPlZ06o
+  geminiApiKey: 
+  geminiModel: gemini-2.5-flash-lite
   useOfflineMode: 0
   offlinePromptsJson: {fileID: 0}
+  maxHistory: 20
 --- !u!114 &7865551819213762988
 MonoBehaviour:
   m_ObjectHideFlags: 0

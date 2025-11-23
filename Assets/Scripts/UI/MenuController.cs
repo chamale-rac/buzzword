@@ -20,10 +20,10 @@ public class MenuController : MonoBehaviour
     [SerializeField] private Button creditsButton;
     [SerializeField] private Button quitButton;
 
-    [Header("Level Select Buttons")]
-    [SerializeField] private Button level1Button;
-    [SerializeField] private Button level2Button;
-    [SerializeField] private Button level3Button;
+    [Header("Language / Mode Selection")]
+    [SerializeField] private Button level1Button; // Repurposed as English button
+    [SerializeField] private Button level2Button; // Repurposed as Spanish button
+    [SerializeField] private Button level3Button; // Hidden in endless mode
     [SerializeField] private Button backFromLevelSelectButton;
 
     [Header("Settings")]
@@ -44,6 +44,7 @@ public class MenuController : MonoBehaviour
     private void Start()
     {
         InitializeMenu();
+        ConfigureLanguageButtons();
         SetupButtonListeners();
         UpdateScoreDisplay();
 
@@ -89,7 +90,10 @@ public class MenuController : MonoBehaviour
             startButton.onClick.AddListener(OnStartGame);
 
         if (levelSelectButton != null)
-            levelSelectButton.onClick.AddListener(OnLevelSelect);
+        {
+            levelSelectButton.onClick.AddListener(OnLanguageSelect);
+            SetButtonLabel(levelSelectButton, "Language");
+        }
 
         if (settingsButton != null)
             settingsButton.onClick.AddListener(OnSettings);
@@ -102,13 +106,13 @@ public class MenuController : MonoBehaviour
 
         // Level select buttons
         if (level1Button != null)
-            level1Button.onClick.AddListener(() => OnLoadLevel(1));
+            level1Button.onClick.AddListener(() => OnSelectLanguage(GameLanguage.English));
 
         if (level2Button != null)
-            level2Button.onClick.AddListener(() => OnLoadLevel(2));
+            level2Button.onClick.AddListener(() => OnSelectLanguage(GameLanguage.Spanish));
 
         if (level3Button != null)
-            level3Button.onClick.AddListener(() => OnLoadLevel(3));
+            level3Button.gameObject.SetActive(false);
 
         if (backFromLevelSelectButton != null)
             backFromLevelSelectButton.onClick.AddListener(OnBackToMain);
@@ -140,11 +144,11 @@ public class MenuController : MonoBehaviour
 
         if (SceneLoader.Instance != null)
         {
-            SceneLoader.Instance.LoadLevel(1);
+            SceneLoader.Instance.LoadEndlessMode();
         }
     }
 
-    private void OnLevelSelect()
+    private void OnLanguageSelect()
     {
         PlayButtonClick();
         
@@ -153,6 +157,8 @@ public class MenuController : MonoBehaviour
 
         if (levelSelectPanel != null)
             levelSelectPanel.SetActive(true);
+
+        ConfigureLanguageButtons();
     }
 
     private void OnSettings()
@@ -191,22 +197,6 @@ public class MenuController : MonoBehaviour
         }
     }
 
-    private void OnLoadLevel(int level)
-    {
-        PlayButtonClick();
-        
-        if (GameManager.Instance != null)
-        {
-            GameManager.Instance.currentLevel = level;
-            GameManager.Instance.currentRound = 0;
-        }
-
-        if (SceneLoader.Instance != null)
-        {
-            SceneLoader.Instance.LoadLevel(level);
-        }
-    }
-
     private void OnBackToMain()
     {
         PlayButtonClick();
@@ -222,6 +212,51 @@ public class MenuController : MonoBehaviour
 
         if (creditsPanel != null)
             creditsPanel.SetActive(false);
+
+        ConfigureLanguageButtons();
+    }
+
+    private void OnSelectLanguage(GameLanguage language)
+    {
+        PlayButtonClick();
+
+        if (GameManager.Instance != null)
+        {
+            GameManager.Instance.SetLanguage(language);
+            UpdateScoreDisplay();
+        }
+
+        ConfigureLanguageButtons();
+    }
+
+    private void ConfigureLanguageButtons()
+    {
+        if (level1Button != null)
+            SetButtonLabel(level1Button, BuildLanguageLabel(GameLanguage.English));
+
+        if (level2Button != null)
+            SetButtonLabel(level2Button, BuildLanguageLabel(GameLanguage.Spanish));
+    }
+
+    private string BuildLanguageLabel(GameLanguage language)
+    {
+        if (GameManager.Instance == null)
+            return language == GameLanguage.Spanish ? "Español" : "English";
+
+        bool isActive = GameManager.Instance.CurrentLanguage == language;
+        string baseText = language == GameLanguage.Spanish ? "Español" : "English";
+        return isActive ? $"{baseText} ✓" : baseText;
+    }
+
+    private void SetButtonLabel(Button button, string label)
+    {
+        if (button == null) return;
+
+        var text = button.GetComponentInChildren<TextMeshProUGUI>();
+        if (text != null)
+        {
+            text.text = label;
+        }
     }
 
     private void OnMusicVolumeChanged(float value)
@@ -244,7 +279,7 @@ public class MenuController : MonoBehaviour
     {
         if (totalScoreText != null && GameManager.Instance != null)
         {
-            totalScoreText.text = $"High Score: {GameManager.Instance.totalScore}";
+            totalScoreText.text = $"High Score: {GameManager.Instance.totalScore}\nLanguage: {GameManager.Instance.GetLanguageDisplayName()}";
         }
     }
 
