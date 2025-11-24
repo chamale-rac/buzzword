@@ -1,4 +1,5 @@
 using System.Collections;
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
@@ -56,6 +57,11 @@ public class MenuController : MonoBehaviour
     [SerializeField] private string endlessSceneName = "Level1";
 
     private Coroutine loadingPanelRoutine;
+    private Coroutine waitForPlayFabRoutine;
+    private bool playFabReady;
+    private bool leaderboardReady;
+    private bool playFabSubscribed;
+    private float loadingPanelStartTime;
 
     private void Awake()
     {
@@ -72,8 +78,24 @@ public class MenuController : MonoBehaviour
         if (leaderboardPanel == null)
             leaderboardPanel = FindFirstObjectByType<LeaderboardPanelController>(FindObjectsInactive.Include);
 
-        HideLoadingPanelImmediate();
-        FlashLoadingPanel("Loading...");
+
+        // Show a random loading phrase each time
+        string[] loadingPhrases = new[]
+        {
+            "Loading leaderboard...",
+            "Fetching top scores...",
+            "Let the numbers roll...",
+            "Summoning the champions...",
+            "Cracking open the high scores...",
+            "Gathering leaderboard legends...",
+            "Loading... Success is in reach!",
+            "Who will top the list?",
+            "Getting the best of the best...",
+            "Good things come to those who wait..."
+        };
+        string chosenPhrase = loadingPhrases[UnityEngine.Random.Range(0, loadingPhrases.Length)];
+        ShowLoadingPanel(chosenPhrase);
+        SubscribeToPlayFabSignals();
 
         InitializeMenu();
         ConfigureLanguageButtons();
@@ -88,6 +110,15 @@ public class MenuController : MonoBehaviour
     private void Update()
     {
         AnimateTitle();
+    }
+
+    private void OnDestroy()
+    {
+        if (Instance == this)
+            Instance = null;
+
+        UnsubscribeFromPlayFabSignals();
+        StopLoadingPanelCoroutines();
     }
 
     private void InitializeMenu()
@@ -347,28 +378,23 @@ public class MenuController : MonoBehaviour
 #endif
     }
 
-    public void FlashLoadingPanel(string message = null)
+    private void ShowLoadingPanel(string message = null)
     {
         if (loadingPanel == null)
             return;
 
-        if (loadingPanelRoutine != null)
-        {
-            StopCoroutine(loadingPanelRoutine);
-            loadingPanelRoutine = null;
-        }
-
+        loadingPanelStartTime = Time.unscaledTime;
         loadingPanel.SetActive(true);
 
         if (loadingPanelMessage != null)
             loadingPanelMessage.text = string.IsNullOrEmpty(message) ? "Loading..." : message;
-
-        loadingPanelRoutine = StartCoroutine(HideLoadingPanelAfterDelay());
     }
 
-    private IEnumerator HideLoadingPanelAfterDelay()
+    private IEnumerator HideLoadingPanelAfterDelay(float delay)
     {
-        yield return new WaitForSecondsRealtime(Mathf.Max(0f, loadingPanelDuration));
+        if (delay > 0f)
+            yield return new WaitForSecondsRealtime(delay);
+
         HideLoadingPanelImmediate();
     }
 
@@ -384,10 +410,101 @@ public class MenuController : MonoBehaviour
             loadingPanel.SetActive(false);
     }
 
-    private void OnDestroy()
+    private void SubscribeToPlayFabSignals()
     {
-        if (Instance == this)
-            Instance = null;
+        if (playFabSubscribed)
+            return;
+
+        var manager = PlayFabManager.Instance;
+        if (manager == null)
+        {
+            if (waitForPlayFabRoutine == null)
+                waitForPlayFabRoutine = StartCoroutine(WaitForPlayFabAndSubscribe());
+            return;
+        }
+
+        manager.OnLoginSucceeded += HandlePlayFabLoginSucceeded;
+        manager.OnLoginFailed += HandlePlayFabLoginFailed;
+        manager.OnLeaderboardUpdated += HandlePlayFabLeaderboardUpdated;
+        playFabSubscribed = true;
+
+        playFabReady = manager.IsLoggedIn;
+        leaderboardReady = manager.CachedLeaderboard != null && manager.CachedLeaderboard.Count > 0;
+        TryHideLoadingPanelWhenReady();
+    }
+
+    private IEnumerator WaitForPlayFabAndSubscribe()
+    {
+        while (PlayFabManager.Instance == null)
+            yield return null;
+
+        waitForPlayFabRoutine = null;
+        SubscribeToPlayFabSignals();
+    }
+
+    private void UnsubscribeFromPlayFabSignals()
+    {
+        if (!playFabSubscribed)
+            return;
+
+        var manager = PlayFabManager.Instance;
+        if (manager != null)
+        {
+            manager.OnLoginSucceeded -= HandlePlayFabLoginSucceeded;
+            manager.OnLoginFailed -= HandlePlayFabLoginFailed;
+            manager.OnLeaderboardUpdated -= HandlePlayFabLeaderboardUpdated;
+        }
+
+        playFabSubscribed = false;
+    }
+
+    private void HandlePlayFabLoginSucceeded(PlayFabLoginResult _)
+    {
+        playFabReady = true;
+        TryHideLoadingPanelWhenReady();
+    }
+
+    private void HandlePlayFabLoginFailed(string _)
+    {
+        playFabReady = true;
+        TryHideLoadingPanelWhenReady();
+    }
+
+    private void HandlePlayFabLeaderboardUpdated(IReadOnlyList<LeaderboardEntry> entries, LeaderboardEntry playerEntry)
+    {
+        leaderboardReady = true;
+        TryHideLoadingPanelWhenReady();
+    }
+
+    private void TryHideLoadingPanelWhenReady()
+    {
+        if (!playFabReady || !leaderboardReady || loadingPanel == null)
+            return;
+
+        if (loadingPanelRoutine != null)
+        {
+            StopCoroutine(loadingPanelRoutine);
+            loadingPanelRoutine = null;
+        }
+
+        float elapsed = Time.unscaledTime - loadingPanelStartTime;
+        float delay = Mathf.Max(0f, loadingPanelDuration - elapsed);
+        loadingPanelRoutine = StartCoroutine(HideLoadingPanelAfterDelay(delay));
+    }
+
+    private void StopLoadingPanelCoroutines()
+    {
+        if (loadingPanelRoutine != null)
+        {
+            StopCoroutine(loadingPanelRoutine);
+            loadingPanelRoutine = null;
+        }
+
+        if (waitForPlayFabRoutine != null)
+        {
+            StopCoroutine(waitForPlayFabRoutine);
+            waitForPlayFabRoutine = null;
+        }
     }
 }
 
