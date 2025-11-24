@@ -140,7 +140,35 @@ public class WordPromptManager : MonoBehaviour
             feedbackText.text = "";
 
         UpdateLevelInfo();
-        SetLoadingPanel(true, Localize("Generating clue...", "Generando pista..."));
+        // Show a random loading phrase, localized with a fun and diverse flavor each time
+        string[] loadingPhrasesEn = {
+            "Thinking up a tricky clue...",
+            "Mixing up some wordy mischief!",
+            "The word elves are at work...",
+            "Sharpening our pencils...",
+            "Conjuring a new riddle!",
+            "Dropping hints from above...",
+            "Brewing up a brainteaser!",
+            "Warming up my dictionaries...",
+            "Consulting the thesaurus wizards...",
+            "Summoning the next challenge!"
+        };
+        string[] loadingPhrasesEs = {
+            "Pensando en una pista tramposa...",
+            "¡Mezclando travesuras de palabras!",
+            "Los duendes de las palabras están trabajando...",
+            "Sacando punta a los lápices...",
+            "¡Conjurando un nuevo acertijo!",
+            "Dejando caer pistas desde arriba...",
+            "Preparando un rompecabezas mental...",
+            "Calentando los diccionarios...",
+            "Consultando a los magos del diccionario...",
+            "¡Invocando el próximo desafío!"
+        };
+        bool isSpanish = GameManager.Instance != null && GameManager.Instance.CurrentLanguage == GameLanguage.Spanish;
+        string[] choices = isSpanish ? loadingPhrasesEs : loadingPhrasesEn;
+        string chosenPhrase = choices[UnityEngine.Random.Range(0, choices.Length)];
+        SetLoadingPanel(true, chosenPhrase);
         StartCoroutine(GenerateNewPhrase());
     }
 
@@ -455,8 +483,7 @@ public class WordPromptManager : MonoBehaviour
 
         if (nextButton != null)
         {
-            nextButton.interactable = true;
-            ConfigureNextButtonAppearance(Localize("Retry", "Reintentar"), nextButtonRetryColor);
+            nextButton.gameObject.SetActive(false);
         }
     }
 
