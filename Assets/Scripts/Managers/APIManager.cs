@@ -33,6 +33,7 @@ public class APIManager : MonoBehaviour
         {
             Instance = this;
             DontDestroyOnLoad(gameObject);
+            ApplySecretOverrides();
             LoadOfflineData();
             Debug.Log("APIManager initialized");
         }
@@ -54,6 +55,15 @@ public class APIManager : MonoBehaviour
         catch (Exception e)
         {
             Debug.LogError($"Failed to load offline data: {e.Message}");
+        }
+    }
+
+    private void ApplySecretOverrides()
+    {
+        SecretsPayload secrets = SecretManager.Secrets;
+        if (secrets != null && !string.IsNullOrEmpty(secrets.geminiApiKey))
+        {
+            geminiApiKey = secrets.geminiApiKey;
         }
     }
 
@@ -489,7 +499,6 @@ public class APIManager : MonoBehaviour
             {
                 "describir un objeto cotidiano",
                 "describir una profesión interesante",
-                "describir una sensación o emoción",
                 "describir comida o bebida",
                 "describir fenómenos naturales",
                 "describir tecnología o ciencia"
@@ -497,7 +506,6 @@ public class APIManager : MonoBehaviour
             : new[]
             {
                 "describing a clever invention",
-                "describing an emotion or mood",
                 "describing a cultural tradition",
                 "describing a scientific concept",
                 "describing a place or landmark",

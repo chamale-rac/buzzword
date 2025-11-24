@@ -3,6 +3,7 @@ using System.Collections;
 using System.Text;
 using UnityEngine;
 using TMPro;
+using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 
 /// <summary>
@@ -28,6 +29,14 @@ public class WordPromptManager : MonoBehaviour
     [SerializeField] private TextMeshProUGUI topWordsText; // Displays accepted answers list
     [SerializeField] private Button nextButton;
     [SerializeField] private Button menuButton;
+    [SerializeField] private Button pauseButton;
+    [SerializeField] private GameObject pausePanel;
+    [SerializeField] private Button resumeButton;
+    private string defaultNextButtonLabel;
+
+    [Header("Next Button Styling")]
+    [SerializeField] private Color nextButtonNormalColor = new Color(0.2f, 0.75f, 0.2f);
+    [SerializeField] private Color nextButtonRetryColor = new Color(0.8f, 0.25f, 0.25f);
 
     [Header("Loading Panel")]
     [SerializeField] private GameObject loadingPanel;
@@ -39,11 +48,16 @@ public class WordPromptManager : MonoBehaviour
     [SerializeField] private int maxHints = 2;
     private int hintsUsed = 0;
 
+    [Header("Scene Navigation")]
+    [SerializeField] private string mainMenuSceneName = "MainMenu";
+
     private PhraseResult currentPhrase;
     private float timeRemaining;
     private float roundTimeLimit;
     private bool roundActive = false;
     private bool hasAnswered = false;
+    private bool isPaused = false;
+    private bool gameOverTriggered = false;
 
     private void Start()
     {
@@ -53,6 +67,9 @@ public class WordPromptManager : MonoBehaviour
 
     private void Update()
     {
+        if (isPaused)
+            return;
+
         if (roundActive && !hasAnswered)
         {
             UpdateTimer();
@@ -65,18 +82,28 @@ public class WordPromptManager : MonoBehaviour
         nextButton?.onClick.AddListener(OnNextRound);
         menuButton?.onClick.AddListener(OnReturnToMenu);
         hintButton?.onClick.AddListener(OnRequestHint);
+        pauseButton?.onClick.AddListener(TogglePause);
+        resumeButton?.onClick.AddListener(TogglePause);
 
         resultPanel?.SetActive(false);
         loadingPanel?.SetActive(false);
+        if (pausePanel != null)
+            pausePanel.SetActive(false);
 
         if (hintText != null)
             hintText.gameObject.SetActive(false);
+
+        var nextLabel = nextButton != null ? nextButton.GetComponentInChildren<TextMeshProUGUI>() : null;
+        if (nextLabel != null)
+            defaultNextButtonLabel = nextLabel.text;
 
         UpdateLevelInfo();
     }
 
     private void StartNewRound()
     {
+        SetPaused(false);
+        gameOverTriggered = false;
         hasAnswered = false;
         roundActive = false;
         hintsUsed = 0;
@@ -90,6 +117,12 @@ public class WordPromptManager : MonoBehaviour
             hintButton.interactable = true;
 
         resultPanel?.SetActive(false);
+        if (nextButton != null)
+        {
+            nextButton.interactable = true;
+            if (!string.IsNullOrEmpty(defaultNextButtonLabel))
+                ConfigureNextButtonAppearance(defaultNextButtonLabel, nextButtonNormalColor);
+        }
 
         if (topWordsText != null)
             topWordsText.text = "";
@@ -202,6 +235,12 @@ public class WordPromptManager : MonoBehaviour
             AudioManager.Instance?.PlayWrongAnswer();
 
         ShowResultPanel(result, guess);
+
+        if (GameManager.Instance != null && GameManager.Instance.IsGameOver())
+        {
+            HandleGameOverUI();
+            return;
+        }
     }
 
     private void ShowResultPanel(MatchResult result, string guess)
@@ -229,7 +268,13 @@ public class WordPromptManager : MonoBehaviour
 
         if (totalScoreText != null && GameManager.Instance != null)
         {
-            totalScoreText.text = $"{Localize("Total Score", "Puntaje total")}: {GameManager.Instance.totalScore}";
+            bool isNewRecord = GameManager.Instance.totalScore == GameManager.Instance.BestScore;
+            string bestLine = isNewRecord
+                ? Localize("New personal best!", "¡Nuevo récord personal!")
+                : $"{Localize("Best", "Mejor")}: {GameManager.Instance.BestScore}";
+
+            totalScoreText.text =
+                $"{Localize("Total Score", "Puntaje total")}: {GameManager.Instance.totalScore}\n{bestLine}";
         }
 
         if (topWordsText != null && result.acceptedWords != null && result.acceptedWords.Length > 0)
@@ -262,13 +307,23 @@ public class WordPromptManager : MonoBehaviour
     private void OnNextRound()
     {
         AudioManager.Instance?.PlayButtonClick();
-        StartNewRound();
+        if (GameManager.Instance != null && GameManager.Instance.IsGameOver())
+        {
+            GameManager.Instance.ResetGame();
+            StartNewRound();
+            return;
+        }
+
+        if (!roundActive && !isPaused)
+        {
+            StartNewRound();
+        }
     }
 
     private void OnReturnToMenu()
     {
         AudioManager.Instance?.PlayButtonClick();
-        SceneLoader.Instance?.LoadMainMenu();
+        ReturnToMainMenu();
     }
 
     private void OnRequestHint()
@@ -359,7 +414,96 @@ public class WordPromptManager : MonoBehaviour
             return;
 
         if (scoreText != null)
-            scoreText.text = $"{Localize("Score", "Puntaje")}: {GameManager.Instance.totalScore}\n{Localize("Rounds", "Rondas")}: {GameManager.Instance.roundsCompleted}";
+        {
+            scoreText.text =
+                $"{Localize("Score", "Puntaje")}: {GameManager.Instance.totalScore}\n" +
+                $"{Localize("Best", "Mejor")}: {GameManager.Instance.BestScore}\n" +
+                $"{Localize("Rounds", "Rondas")}: {GameManager.Instance.roundsCompleted}\n" +
+                $"{Localize("Lives", "Vidas")}: {GameManager.Instance.livesRemaining}";
+        }
+    }
+
+    private void HandleGameOverUI()
+    {
+        if (gameOverTriggered)
+            return;
+
+        gameOverTriggered = true;
+        SetPaused(false);
+        roundActive = false;
+        hasAnswered = true;
+
+        if (pauseButton != null)
+            pauseButton.gameObject.SetActive(false);
+
+        if (resumeButton != null)
+            resumeButton.gameObject.SetActive(false);
+
+        if (pausePanel != null)
+            pausePanel.SetActive(false);
+
+        if (resultPanel != null)
+            resultPanel.SetActive(true);
+
+        if (resultMessage != null)
+        {
+            resultMessage.text = $"{Localize("Game Over", "Juego terminado")}\n{Localize("You ran out of lives.", "Te quedaste sin vidas.")}";
+        }
+
+        if (feedbackText != null)
+            feedbackText.text = Localize("No lives remaining. Tap Retry to play again or Menu to exit.", "Sin vidas. Presiona Reintentar para jugar de nuevo o Menú para salir.");
+
+        if (nextButton != null)
+        {
+            nextButton.interactable = true;
+            ConfigureNextButtonAppearance(Localize("Retry", "Reintentar"), nextButtonRetryColor);
+        }
+    }
+
+    private void TogglePause()
+    {
+        if (GameManager.Instance != null && GameManager.Instance.IsGameOver())
+            return;
+
+        SetPaused(!isPaused);
+    }
+
+    private void SetPaused(bool paused)
+    {
+        if (isPaused == paused)
+            return;
+
+        isPaused = paused;
+        Time.timeScale = paused ? 0f : 1f;
+
+        if (pausePanel != null)
+            pausePanel.SetActive(paused);
+
+        if (resumeButton != null)
+            resumeButton.gameObject.SetActive(paused);
+
+        if (pauseButton != null)
+            pauseButton.gameObject.SetActive(!paused);
+
+        bool canInteract = !paused && roundActive && !hasAnswered;
+
+        if (guessInputField != null)
+            guessInputField.interactable = canInteract;
+
+        if (submitButton != null)
+            submitButton.interactable = canInteract;
+
+        if (hintButton != null)
+            hintButton.interactable = canInteract && hintsUsed < maxHints;
+
+        if (!paused)
+            UpdateTimerLabel();
+    }
+
+    private void OnDisable()
+    {
+        if (isPaused)
+            SetPaused(false);
     }
 
     private void SetLoadingPanel(bool active, string message)
@@ -386,6 +530,37 @@ public class WordPromptManager : MonoBehaviour
         return GameManager.Instance != null && GameManager.Instance.CurrentLanguage == GameLanguage.Spanish
             ? spanish
             : english;
+    }
+
+    private void ConfigureNextButtonAppearance(string label, Color tint)
+    {
+        if (nextButton == null)
+            return;
+
+        var labelComponent = nextButton.GetComponentInChildren<TextMeshProUGUI>();
+        if (labelComponent != null && !string.IsNullOrEmpty(label))
+            labelComponent.text = label;
+
+        var colors = nextButton.colors;
+        colors.normalColor = tint;
+        colors.highlightedColor = tint;
+        colors.selectedColor = tint;
+        colors.pressedColor = tint * 0.9f;
+        nextButton.colors = colors;
+
+        if (nextButton.targetGraphic != null)
+            nextButton.targetGraphic.color = tint;
+    }
+
+    private void ReturnToMainMenu()
+    {
+        if (string.IsNullOrEmpty(mainMenuSceneName))
+        {
+            Debug.LogError("WordPromptManager: Main menu scene name is not set.");
+            return;
+        }
+
+        SceneManager.LoadScene(mainMenuSceneName);
     }
 }
 

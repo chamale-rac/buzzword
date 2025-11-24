@@ -101,3 +101,14 @@ InitTestScene*.unity*
 Context/*
 
 /[Aa]ssets/TextMesh Pro/*
+
+# Local secrets and private config
+LocalSettings/
+*.secrets.json
+*.Secrets.json
+Assets/Resources/Secrets*.json
+Assets/StreamingAssets/Secrets*.json
+/*.env
+/env/
+/Secrets/
+/secrets/

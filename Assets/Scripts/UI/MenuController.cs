@@ -1,4 +1,6 @@
+using System.Collections;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 using TMPro;
 
@@ -7,6 +9,8 @@ using TMPro;
 /// </summary>
 public class MenuController : MonoBehaviour
 {
+    public static MenuController Instance { get; private set; }
+
     [Header("Main Menu Panels")]
     [SerializeField] private GameObject mainPanel;
     [SerializeField] private GameObject levelSelectPanel;
@@ -36,17 +40,46 @@ public class MenuController : MonoBehaviour
 
     [Header("Score Display")]
     [SerializeField] private TextMeshProUGUI totalScoreText;
+    [SerializeField] private LeaderboardPanelController leaderboardPanel;
+
+    [Header("Loading Overlay")]
+    [SerializeField] private GameObject loadingPanel;
+    [SerializeField] private TextMeshProUGUI loadingPanelMessage;
+    [SerializeField, Tooltip("Seconds the loading overlay stays visible.")]
+    private float loadingPanelDuration = 1f;
 
     [Header("Title Animation")]
     [SerializeField] private TextMeshProUGUI titleText;
     [SerializeField] private float titleAnimationSpeed = 1f;
 
+    [Header("Scene Settings")]
+    [SerializeField] private string endlessSceneName = "Level1";
+
+    private Coroutine loadingPanelRoutine;
+
+    private void Awake()
+    {
+        if (Instance != null && Instance != this)
+        {
+            Debug.LogWarning("Multiple MenuController instances detected. Overwriting reference.");
+        }
+
+        Instance = this;
+    }
+
     private void Start()
     {
+        if (leaderboardPanel == null)
+            leaderboardPanel = FindFirstObjectByType<LeaderboardPanelController>(FindObjectsInactive.Include);
+
+        HideLoadingPanelImmediate();
+        FlashLoadingPanel("Loading...");
+
         InitializeMenu();
         ConfigureLanguageButtons();
         SetupButtonListeners();
         UpdateScoreDisplay();
+        leaderboardPanel?.ForceImmediateRefresh();
 
         if (AudioManager.Instance != null)
             AudioManager.Instance.PlayMenuMusic();
@@ -142,10 +175,7 @@ public class MenuController : MonoBehaviour
             GameManager.Instance.ResetGame();
         }
 
-        if (SceneLoader.Instance != null)
-        {
-            SceneLoader.Instance.LoadEndlessMode();
-        }
+        LoadSceneSafe(endlessSceneName);
     }
 
     private void OnLanguageSelect()
@@ -187,14 +217,7 @@ public class MenuController : MonoBehaviour
     {
         PlayButtonClick();
         
-        if (SceneLoader.Instance != null)
-        {
-            SceneLoader.Instance.QuitGame();
-        }
-        else
-        {
-            Application.Quit();
-        }
+        QuitApplication();
     }
 
     private void OnBackToMain()
@@ -245,7 +268,7 @@ public class MenuController : MonoBehaviour
 
         bool isActive = GameManager.Instance.CurrentLanguage == language;
         string baseText = language == GameLanguage.Spanish ? "Español" : "English";
-        return isActive ? $"{baseText} ✓" : baseText;
+        return isActive ? $"(x) {baseText}" : $"(-) {baseText}";
     }
 
     private void SetButtonLabel(Button button, string label)
@@ -279,7 +302,9 @@ public class MenuController : MonoBehaviour
     {
         if (totalScoreText != null && GameManager.Instance != null)
         {
-            totalScoreText.text = $"High Score: {GameManager.Instance.totalScore}\nLanguage: {GameManager.Instance.GetLanguageDisplayName()}";
+            totalScoreText.text =
+                $"Last Run: {GameManager.Instance.totalScore}\n" +
+                $"Language: {GameManager.Instance.GetLanguageDisplayName()}";
         }
     }
 
@@ -299,6 +324,70 @@ public class MenuController : MonoBehaviour
         {
             AudioManager.Instance.PlayButtonClick();
         }
+    }
+
+    private void LoadSceneSafe(string sceneName)
+    {
+        if (string.IsNullOrEmpty(sceneName))
+        {
+            Debug.LogError("MenuController: Scene name not configured for scene load.");
+            return;
+        }
+
+        SceneManager.LoadScene(sceneName);
+    }
+
+    private void QuitApplication()
+    {
+        Debug.Log("Quitting game...");
+        Application.Quit();
+
+#if UNITY_EDITOR
+        UnityEditor.EditorApplication.isPlaying = false;
+#endif
+    }
+
+    public void FlashLoadingPanel(string message = null)
+    {
+        if (loadingPanel == null)
+            return;
+
+        if (loadingPanelRoutine != null)
+        {
+            StopCoroutine(loadingPanelRoutine);
+            loadingPanelRoutine = null;
+        }
+
+        loadingPanel.SetActive(true);
+
+        if (loadingPanelMessage != null)
+            loadingPanelMessage.text = string.IsNullOrEmpty(message) ? "Loading..." : message;
+
+        loadingPanelRoutine = StartCoroutine(HideLoadingPanelAfterDelay());
+    }
+
+    private IEnumerator HideLoadingPanelAfterDelay()
+    {
+        yield return new WaitForSecondsRealtime(Mathf.Max(0f, loadingPanelDuration));
+        HideLoadingPanelImmediate();
+    }
+
+    private void HideLoadingPanelImmediate()
+    {
+        if (loadingPanelRoutine != null)
+        {
+            StopCoroutine(loadingPanelRoutine);
+            loadingPanelRoutine = null;
+        }
+
+        if (loadingPanel != null)
+            loadingPanel.SetActive(false);
+    }
+
+    private void OnDestroy()
+    {
+        if (Instance == this)
+            Instance = null;
     }
 }
 

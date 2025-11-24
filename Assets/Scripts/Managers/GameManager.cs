@@ -18,6 +18,8 @@ public class GameManager : MonoBehaviour
     public int totalScore = 0;
     public int currentRoundScore = 0;
     public int roundsCompleted = 0;
+    public int livesRemaining = 10;
+    public int BestScore => bestScore;
 
     [Header("Endless Mode Configuration")]
     [SerializeField] private float baseTimeLimit = 55f;
@@ -27,9 +29,16 @@ public class GameManager : MonoBehaviour
     [SerializeField] private int maxDifficultyTier = 6;
     [SerializeField] private float difficultyRamp = 0.07f;
 
-    [Header("Language Settings")]
-    [SerializeField] private GameLanguage startingLanguage = GameLanguage.English;
-    public GameLanguage CurrentLanguage { get; private set; }
+[Header("Life Settings")]
+[SerializeField] private int startingLives = 10;
+[SerializeField] private int livesLostOnFail = 3;
+[SerializeField] private int livesGainedOnSuccess = 1;
+
+[Header("Language Settings")]
+[SerializeField] private GameLanguage startingLanguage = GameLanguage.English;
+public GameLanguage CurrentLanguage { get; private set; }
+
+    private int bestScore = 0;
 
     private void Awake()
     {
@@ -39,6 +48,7 @@ public class GameManager : MonoBehaviour
             Instance = this;
             DontDestroyOnLoad(gameObject);
             CurrentLanguage = startingLanguage;
+            bestScore = 0;
             Debug.Log($"GameManager initialized (Language: {CurrentLanguage})");
         }
         else
@@ -56,6 +66,7 @@ public class GameManager : MonoBehaviour
         totalScore = 0;
         currentRoundScore = 0;
         roundsCompleted = 0;
+        livesRemaining = startingLives;
         Debug.Log("Game reset");
     }
 
@@ -69,7 +80,14 @@ public class GameManager : MonoBehaviour
         currentRoundScore = Mathf.Max(0, result.points);
         totalScore += currentRoundScore;
         roundsCompleted++;
-        Debug.Log($"Round registered. Points: {currentRoundScore}. Total score: {totalScore}. Rounds: {roundsCompleted}");
+
+        if (result.matched)
+            livesRemaining = Mathf.Min(livesRemaining + livesGainedOnSuccess, startingLives);
+        else
+            livesRemaining = Mathf.Max(0, livesRemaining - livesLostOnFail);
+
+        TryUpdateBestScore(totalScore);
+        Debug.Log($"Round registered. Points: {currentRoundScore}. Total score: {totalScore}. Rounds: {roundsCompleted}. Lives: {livesRemaining}");
     }
 
     /// <summary>
@@ -132,6 +150,20 @@ public class GameManager : MonoBehaviour
     public string GetLanguageDisplayName()
     {
         return CurrentLanguage == GameLanguage.Spanish ? "Español" : "English";
+    }
+
+    public bool IsGameOver()
+    {
+        return livesRemaining <= 0;
+    }
+
+    private void TryUpdateBestScore(int candidateScore)
+    {
+        if (candidateScore <= bestScore)
+            return;
+
+        bestScore = candidateScore;
+        LeaderboardSyncManager.Instance?.ReportScore(bestScore);
     }
 }
 
