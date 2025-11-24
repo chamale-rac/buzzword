@@ -1,0 +1,36 @@
+% DOCUMENT CLASS AND BASIC SETUP
+\documentclass[a4paper, 12pt]{article}
+
+% PACKAGES
+\input{src/packages}
+\input{src/configuration}
+
+% HEADER AND FOOTER CONFIGURATION
+\fancyhf{} % Clear default header and footer
+\rfoot{\thepage} % Page number at bottom right
+\renewcommand{\headrulewidth}{0pt} % Remove header line
+
+\begin{document}
+
+% TITLE PAGE
+\pagenumbering{gobble} % Remove page numbers for title page
+\input{src/titlepage}
+\pagestyle{fancy}
+\thispagestyle{empty}
+
+% TABLE OF CONTENTS
+\tableofcontents	
+\newpage
+
+% DOCUMENT BODY
+\pagenumbering{arabic} % Start Arabic numbering
+\setcounter{page}{1} % Reset page counter
+
+\input{content}
+
+
+% END OF DOCUMENT
+% \newpage
+% \input{src/endofdocument}
+
+\end{document}

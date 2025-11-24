@@ -1,0 +1,12 @@
+\babel@toc {spanish}{}\relax 
+\contentsline {section}{\numberline {1}Título del Juego}{1}{section.1}%
+\contentsline {section}{\numberline {2}Concepto — Elevator Pitch}{1}{section.2}%
+\contentsline {section}{\numberline {3}Game Loop Principal}{1}{section.3}%
+\contentsline {section}{\numberline {4}Mecánicas Principales}{1}{section.4}%
+\contentsline {subsection}{\numberline {4.1}Movimiento y control}{1}{subsection.4.1}%
+\contentsline {subsection}{\numberline {4.2}Interacción con personajes y sistemas}{2}{subsection.4.2}%
+\contentsline {subsection}{\numberline {4.3}Combate, acertijos y narrativa}{2}{subsection.4.3}%
+\contentsline {section}{\numberline {5}Género y Público Objetivo}{2}{section.5}%
+\contentsline {section}{\numberline {6}Alcance del Vertical Slice}{3}{section.6}%
+\contentsline {subsection}{\numberline {6.1}Incluido}{3}{subsection.6.1}%
+\contentsline {subsection}{\numberline {6.2}No incluido (visión del juego completo)}{3}{subsection.6.2}%

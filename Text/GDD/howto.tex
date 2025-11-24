@@ -1,0 +1,212 @@
+% LaTeX Usage Guide - Copy and Paste Examples
+% This file contains examples for common LaTeX elements
+
+\section{Images (Figuras)}
+
+% Basic image with H positioning (forces exact placement)
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.8\textwidth]{figures/gato_tierno_panzón.jpg}
+    \caption{Description of your image here.}
+    \label{fig:example_label}
+\end{figure}
+
+% Image with different width options
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.6\textwidth]{figures/gato_tierno_panzón.jpg}
+    \caption{Smaller image example.}
+    \label{fig:small_example}
+\end{figure}
+
+% Image with height specification
+\begin{figure}[H]
+    \centering
+    \includegraphics[height=6cm]{figures/gato_tierno_panzón.jpg}
+    \caption{Image with fixed height.}
+    \label{fig:height_example}
+\end{figure}
+
+% Reference an image in text: Ver Figura \ref{fig:example_label}
+
+\section{Code Blocks (Código)}
+
+% Basic code block
+\textbf{Fragmento de Código:}
+\begin{lstlisting}
+#include <stdio.h>
+
+int main() {
+    printf("Hello, World!\n");
+    return 0;
+}
+\end{lstlisting}
+
+% Code block with language specification
+\textbf{Código Python:}
+\begin{lstlisting}[language=Python]
+def hello_world():
+    print("Hello, World!")
+    return True
+
+if __name__ == "__main__":
+    hello_world()
+\end{lstlisting}
+
+% Code block with caption and label (as Cuadro)
+\begin{lstlisting}[language=C, caption={Vector addition function}, label={code:vector_add}]
+void vector_add(double* a, double* b, double* c, int n) {
+    for (int i = 0; i < n; i++) {
+        c[i] = a[i] + b[i];
+    }
+}
+\end{lstlisting}
+
+% Python code example as Cuadro
+\begin{lstlisting}[language=Python, caption={Hello World function}, label={code:hello_python}]
+def hello_world():
+    print("Hello, World!")
+    return True
+
+if __name__ == "__main__":
+    hello_world()
+\end{lstlisting}
+
+% Code without specific language but with caption
+\begin{lstlisting}[caption={Generic code example}, label={code:generic}]
+#include <stdio.h>
+
+int main() {
+    printf("Hello, World!\n");
+    return 0;
+}
+\end{lstlisting}
+
+% Reference code in text: Como se muestra en el Cuadro \ref{code:vector_add}
+
+\section{Quotes (Citas)}
+
+% Simple quote
+\begin{quote}
+This is a simple quote that will be indented and formatted differently from regular text.
+\end{quote}
+
+% Quote with attribution
+\begin{quote}
+``The only way to do great work is to love what you do.''
+\begin{flushright}
+--- Steve Jobs
+\end{flushright}
+\end{quote}
+
+% Block quote using csquotes package
+\begin{displayquote}
+This is a display quote using the csquotes package, which provides better typography for quotations.
+\end{displayquote}
+
+\section{Boxes (Cajas)}
+
+% Simple framed box
+\begin{framed}
+This text is inside a simple framed box.
+\end{framed}
+
+% Colored box
+\begin{tcolorbox}[colback=blue!5!white, colframe=blue!75!black]
+This is a colored box with light blue background and dark blue frame.
+\end{tcolorbox}
+
+% Box with title
+\begin{tcolorbox}[colback=green!5!white, colframe=green!75!black, title=Important Note]
+This box has a title and can be used for highlighting important information.
+\end{tcolorbox}
+
+% Warning box
+\begin{tcolorbox}[colback=red!5!white, colframe=red!75!black, title=Warning]
+This is a warning box with red coloring to draw attention.
+\end{tcolorbox}
+
+\section{Tables (Tablas)}
+
+% Basic table
+\begin{table}[H]
+    \centering
+    \begin{tabular}{|l|c|r|}
+        \hline
+        \textbf{Column 1} & \textbf{Column 2} & \textbf{Column 3} \\
+        \hline
+        Row 1, Col 1 & Row 1, Col 2 & Row 1, Col 3 \\
+        Row 2, Col 1 & Row 2, Col 2 & Row 2, Col 3 \\
+        Row 3, Col 1 & Row 3, Col 2 & Row 3, Col 3 \\
+        \hline
+    \end{tabular}
+    \caption{Basic table example.}
+    \label{tab:basic_example}
+\end{table}
+
+% Professional table with booktabs
+\begin{table}[H]
+    \centering
+    \begin{tabular}{lcc}
+        \toprule
+        \textbf{Algorithm} & \textbf{Time (ms)} & \textbf{Accuracy (\%)} \\
+        \midrule
+        Algorithm A & 150 & 95.2 \\
+        Algorithm B & 120 & 97.8 \\
+        Algorithm C & 180 & 93.5 \\
+        \bottomrule
+    \end{tabular}
+    \caption{Professional table using booktabs.}
+    \label{tab:professional_example}
+\end{table}
+
+% Table with merged cells
+\begin{table}[H]
+    \centering
+    \begin{tabular}{|l|c|c|c|}
+        \hline
+        \multirow{2}{*}{\textbf{Method}} & \multicolumn{3}{c|}{\textbf{Results}} \\
+        \cline{2-4}
+        & \textbf{Precision} & \textbf{Recall} & \textbf{F1-Score} \\
+        \hline
+        Method 1 & 0.85 & 0.78 & 0.81 \\
+        Method 2 & 0.92 & 0.88 & 0.90 \\
+        \hline
+    \end{tabular}
+    \caption{Table with merged cells.}
+    \label{tab:merged_example}
+\end{table}
+
+% Reference table in text: Los resultados se muestran en la Tabla \ref{tab:basic_example}
+
+\section{References (Referencias)}
+
+How to reference elements in text:
+\begin{enumerate}
+    \item Figures: Como se observa en la Figura \ref{fig:example_label}
+    \item Tables: Los datos se presentan en la Tabla \ref{tab:basic_example}  
+    \item Code: El algoritmo se muestra en el Cuadro \ref{code:vector_add}
+    \item Equations: Según la ecuación \ref{eq:example}
+\end{enumerate}
+
+Hot to cite:
+\begin{enumerate}
+    \item De acuerdo a \cite{gensim} todo es genial xd.
+\end{enumerate}
+
+Revisar \url{https://www.overleaf.com/learn/latex/Biblatex_citation_styles} pa mas info.
+
+\section{Equations (Ecuaciones)}
+
+% Inline equation: $E = mc^2$
+
+% Display equation
+\begin{equation}
+    f(x) = \frac{1}{\sqrt{2\pi\sigma^2}} e^{-\frac{(x-\mu)^2}{2\sigma^2}}
+    \label{eq:example}
+\end{equation}
+
+% Equation without numbering
+\begin{equation*}
+    \int_{-\infty}^{\infty} f(x) dx = 1
+\end{equation*}

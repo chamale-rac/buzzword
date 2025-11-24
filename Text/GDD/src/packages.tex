@@ -1,0 +1,128 @@
+% DOCUMENT ENCODING AND LANGUAGE
+\usepackage[utf8]{inputenc}
+\usepackage[spanish]{babel}
+
+% PAGE LAYOUT AND GEOMETRY
+\usepackage[right=2.5 cm, left=2.5 cm, top=2.5 cm, bottom=2.5 cm]{geometry}
+\usepackage{fancyhdr}
+\usepackage{setspace}
+
+% TYPOGRAPHY AND TEXT FORMATTING
+\usepackage[activate={true,nocompatibility},
+	final,
+	tracking=true,
+	kerning=true,
+	expansion=true,
+	spacing=true,
+	factor=1050,
+	stretch=25,
+	shrink=10]{microtype}
+\usepackage{parskip}
+\setlength{\parskip}{12pt plus80pt minus10pt}
+\usepackage{csquotes}
+\usepackage{xcolor}
+
+% GRAPHICS AND FLOATS
+\usepackage{graphicx}
+\usepackage{float}
+
+% TABLES AND VERBATIM
+\usepackage{booktabs}
+\usepackage{fancyvrb}
+\usepackage{multirow} % For merged table cells
+
+% Configure tables to use same counter as listings
+\usepackage{chngcntr}
+\counterwithin{table}{section}
+
+% Make tables and code listings share the same counter
+\makeatletter
+\AtBeginDocument{%
+  \let\c@table\c@lstlisting
+  \let\thetable\thelstlisting
+  \let\ftype@table\ftype@lstlisting
+}
+\makeatother
+
+% CODE LISTINGS
+\usepackage{listings}
+\usepackage{listingsutf8}
+\usepackage{listings,chngcntr}
+
+% Code styling configuration
+\lstset{
+    basicstyle=\ttfamily\small,
+    keywordstyle=\color{blue}\bfseries,
+    commentstyle=\color{green!60!black},
+    stringstyle=\color{red},
+    showstringspaces=false,
+    breaklines=true,
+    frame=single,
+    backgroundcolor=\color{gray!10},
+    numberstyle=\tiny\color{gray},
+    captionpos=b,
+    tabsize=2,
+    inputencoding=utf8,
+    extendedchars=true
+}
+
+% Configure listings to appear as "Cuadros" and share counter with tables
+\renewcommand{\lstlistingname}{Cuadro}
+\renewcommand{\lstlistlistingname}{Índice de cuadros}
+
+% Make listings use the table counter
+\makeatletter
+\AtBeginDocument{%
+  \let\c@lstlisting\c@table
+  \let\thelstlisting\thetable
+  \let\ftype@lstlisting\ftype@table
+}
+\makeatother
+
+% BOXES AND FRAMES
+\usepackage{framed}
+\usepackage{fancybox}
+\usepackage[most]{tcolorbox}
+
+% Box styling
+\newtcolorbox{infobox}[1][]{
+    colback=blue!5!white,
+    colframe=blue!75!black,
+    #1
+}
+
+\newtcolorbox{warningbox}[1][]{
+    colback=red!5!white,
+    colframe=red!75!black,
+    #1
+}
+
+\newtcolorbox{successbox}[1][]{
+    colback=green!5!white,
+    colframe=green!75!black,
+    #1
+}
+
+% UNITS AND MEASUREMENTS
+\usepackage[allow-number-unit-breaks=true]{siunitx}
+
+% MATHEMATICS
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{amsfonts}
+
+% BIBLIOGRAPHY AND REFERENCES
+\usepackage[style=alphabetic, backend=bibtex, sortlocale=en_US]{biblatex}
+\addbibresource{literature/bibliography.bib}
+
+% HYPERLINKS AND URLS
+\usepackage{url}
+\usepackage[hidelinks]{hyperref}
+
+% AUTHORSHIP
+\usepackage{authblk}
+
+% ADDITIONAL UTILITIES
+\usepackage{enumitem} % Enhanced lists
+\usepackage{caption} % Better captions
+\usepackage{subcaption} % Sub-figures and sub-tables

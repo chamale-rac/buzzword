@@ -7482,13 +7482,13 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   musicSource: {fileID: 0}
   sfxSource: {fileID: 0}
-  menuMusic: {fileID: 0}
-  gameplayMusic: {fileID: 0}
-  buttonClickSfx: {fileID: 0}
-  correctAnswerSfx: {fileID: 0}
-  wrongAnswerSfx: {fileID: 0}
-  levelCompleteSfx: {fileID: 0}
-  typingSfx: {fileID: 0}
+  menuMusic: {fileID: 8300000, guid: 358a498d3f8342646a4118d03c68ed22, type: 3}
+  gameplayMusic: {fileID: 8300000, guid: cfe22068839ac2644ac9797e2a91a0ed, type: 3}
+  buttonClickSfx: {fileID: 8300000, guid: ac0fb2d0c7869cd43875b0c1246f9faa, type: 3}
+  correctAnswerSfx: {fileID: 8300000, guid: 6c0e48563d23c8149b5566ad3b68ad94, type: 3}
+  wrongAnswerSfx: {fileID: 8300000, guid: c5455ff185f0adc4ebde93b314f12f63, type: 3}
+  levelCompleteSfx: {fileID: 8300000, guid: 2280cc6eae57cb44c915269bbf88493e, type: 3}
+  typingSfx: {fileID: 8300000, guid: 8ce667c0f48a3b74f8b844d792a58d9f, type: 3}
   musicVolume: 0.5
   sfxVolume: 0.7
 --- !u!114 &6353894700146684656

@@ -1,0 +1,43 @@
+% TITLE PAGE SETUP
+\newgeometry{margin=2cm} % Custom margins for title page
+\thispagestyle{empty} % Remove headers and footers
+
+\begin{titlepage}
+    \begin{center}
+        % UNIVERSITY INFORMATION
+        \doublespacing
+        \textsc{\huge \university}\\
+        \vspace{2.0cm}
+        
+        % FACULTY AND COURSE
+        \onehalfspacing
+        \textsc{\Large \faculty}\\
+        \textsc{\Large \course}\\
+        \vspace{1.0cm}
+        
+        % TITLE SECTION
+        \rule{\linewidth}{0.5mm}\\ % Top horizontal line
+        \vspace{1.4cm}
+        \huge \textbf{\doctitle}\\
+        \vspace{1cm}
+        \large \docsubtitle\normalsize
+        \vspace{0.3cm}
+        \rule{\linewidth}{0.5mm}\\ % Bottom horizontal line
+        \vspace{2.4cm}
+    \end{center}
+    
+    % AUTHORS SECTION
+    \onehalfspacing
+    \begin{minipage}[t]{0.8\textwidth}
+        \begin{itemize}
+            \item[\emph{}] \authorone, \texttt{\emailone}
+        \end{itemize}
+    \end{minipage}
+    \vspace{2.9cm}
+    
+    % SUBMISSION DATE
+    \flushright \emph{\submissionlabel} \submissiondate
+\end{titlepage}
+
+% RESTORE DOCUMENT SETTINGS
+\restoregeometry % Restore original page geometry

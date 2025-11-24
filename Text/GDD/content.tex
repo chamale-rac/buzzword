@@ -1,0 +1,69 @@
+\section{Título del Juego}
+
+\textbf{Buzzword: Duelo de Ingenio Bilingüe}
+
+Buzzword es un juego de agilidad verbal en tiempo real donde cada pista, generada dinámicamente con IA, desafía al jugador a escribir la palabra exacta antes de que el cronómetro y las vidas lleguen a cero. El tono es ligero y competitivo, con retroalimentación inmediata y un énfasis constante en la creatividad lingüística.
+
+\section{Concepto — Elevator Pitch}
+
+Un anfitrión virtual lanza pistas ingeniosas en inglés o español y el jugador escribe el término correcto para ganar puntos, subir dificultad y presumir en un marcador global. Cada ronda es un micro–duelo entre la intuición semántica del jugador y una IA (Gemini) que inventa frases ambiguas. Por su naturaleza “one more round”, Buzzword funciona como juego diario rápido o como sesión prolongada para perseguir récords.
+
+\section{Game Loop Principal}
+
+\begin{enumerate}
+    \item \textbf{Lobby}: El \textit{MenuController} permite elegir idioma (EN/ES), ajustar audio y revisar el último puntaje y el leaderboard sincronizado con PlayFab.
+    \item \textbf{Inicio de ronda}: \textit{WordPromptManager} solicita a \textit{APIManager} una pista acorde al nivel de dificultad calculado por \textit{GameManager}. Si la red falla, se usa un banco offline para no romper el ritmo.
+    \item \textbf{Tiempo de deducción}: con 18--55 segundos según progreso, el jugador lee la pista y escribe su conjetura. El cronómetro, las vidas y el puntaje actual se muestran de forma persistente.
+    \item \textbf{Resolución}: \textit{APIManager} compara la respuesta con la lista de palabras aceptadas, calcula puntos base + bono de velocidad y actualiza vidas (ganas una, pierdes tres). Se despliega un panel con retroalimentación bilingüe, palabras válidas y botones para continuar o volver al menú.
+    \item \textbf{Escalamiento}: \textit{GameManager} reduce gradualmente el tiempo límite, incrementa el nivel de dificultad y comprueba si quedan vidas. Cuando se termina la corrida, se ofrece “Retry” y se sincroniza el mejor puntaje vía \textit{LeaderboardSyncManager} y PlayFab.
+\end{enumerate}
+
+\section{Mecánicas Principales}
+
+\subsection{Movimiento y control}
+Buzzword es estático en el espacio físico: el “movimiento” es mental. El jugador alterna entre lectura (TextMeshPro) y entrada de texto libre (TMP InputField). El flujo incluye accesos rápidos a pistas, retorno al menú y navegación por pantallas superpuestas (panel de resultados, overlay de carga).
+
+\subsection{Interacción con personajes y sistemas}
+\begin{itemize}
+    \item \textbf{Anfitrión IA}: \textit{APIManager} construye prompts para Gemini o toma frases offline, garantizando variedad temática y progresión semántica.
+    \item \textbf{Economía de vidas}: Vives diez intentos; acertar regenera una vida (hasta el máximo), fallar o agotar el tiempo resta tres. Este sistema empuja decisiones rápidas pero informadas.
+    \item \textbf{Sistema de pistas}: Dos pistas escalonadas (texto descriptivo y letra inicial/longitud) gestionadas por \textit{WordPromptManager}. Pedir pistas no penaliza puntos, pero consume un recurso finito por ronda.
+    \item \textbf{Audio reactivo}: \textit{AudioManager} alterna música de menú/gameplay y dispara SFX (botones, aciertos, errores) para enfatizar el feedback instantáneo.
+    \item \textbf{Competencia social}: \textit{PlayFabManager} maneja login un silencioso con ID de dispositivo y sincroniza el high score global. El jugador puede actualizar su display name desde el panel de settings.
+\end{itemize}
+
+\subsection{Combate, acertijos y narrativa}
+No existe combate físico ni NPC tradicionales; el conflicto es contra el tiempo y la ambigüedad lingüística. Cada pista sugiere micro–historias (“fenómeno natural que ruge sin pulmones”), pero la narrativa es emergente: se compone de tus aciertos, récords y evolución de rango (Warm-up → Legend). El reto se siente como un puzzle de asociación libre con componentes de trivia y speed–typing (inclusive gramática).
+
+\section{Género y Público Objetivo}
+
+Buzzword combina \textbf{puzzle semántico}, \textbf{party game asíncrono} y \textbf{educativo casual}. Se orienta a:
+\begin{itemize}
+    \item Jugadores de 13+ que disfrutan juegos de palabras, apps tipo Wordle o competiciones mentales rápidas.
+    \item Estudiantes bilingües y docentes que buscan practicar vocabulario con presión de tiempo.
+    \item “Score chasers” interesados en tablas globales y runs cortas pero exigentes.
+\end{itemize}
+Se trata de una experiencia inclusiva para sesiones de 3--10 minutos, ideal en dispositivos de escritorio o portátiles con teclado físico.
+
+\section{Alcance del Vertical Slice}
+
+\subsection{Incluido}
+\begin{itemize}
+    \item \textbf{Loop completo} de una sesión endless con ajuste dinámico de dificultad, temporizador y sistema de vidas definidas en \textit{GameManager}.
+    \item \textbf{Bilingüismo funcional} (inglés/español) en UI, pistas, feedback y leaderboard según \textit{CurrentLanguage}.
+    \item \textbf{Generación de pistas con IA} (Gemini 2.0 Flash) más fallback offline para pruebas sin red, tal como implementa \textit{APIManager}.
+    \item \textbf{Pistas interactivas y overlays} administrados por \textit{WordPromptManager}, incluyendo hints limitados, panel de resultados, menú y reintento.
+    \item \textbf{Marcadores globales} mediante \textit{PlayFabManager} y \textit{LeaderboardPanelController}, con cambio de nombre y refresco manual.
+    \item \textbf{Audio sistémico} (música menú/gameplay + SFX clave) y controles de volumen expuestos en el menú de opciones.
+\end{itemize}
+
+\subsection{No incluido (visión del juego completo)}
+\begin{itemize}
+    \item \textbf{Más de dos idiomas}: la arquitectura soporta multiples lenguajes, pero el VS se limita a EN/ES para garantizar calidad de pistas.
+    \item \textbf{Perfiles múltiples o progresión persistente}: no hay inventario de boosters, árboles de habilidades ni retos diarios por jugador.
+    \item \textbf{Curación manual de temas}: el jugador no puede seleccionar categorías (ciencia, gastronomía, etc.); la IA rota temas automáticamente.
+    \item \textbf{Modos alternos}: no se incluye cooperativo local, versus en vivo, campañas narrativas ni eventos temporales.
+    \item \textbf{Metajuego cosmético}: sin avatares, insignias visuales o monetización; solo puntuaciones numéricas.
+\end{itemize}
+
+Este recorte asegura que el Vertical Slice demuestre con claridad el núcleo del producto: pistas generadas al vuelo, deducción escrita, progresión de dificultad, retroalimentación audiovisual y validación social mediante leaderboard. Desde este cimiento es posible escalar hacia temporadas temáticas, nuevos idiomas, retos cooperativos o integraciones educativas formales sin rehacer los sistemas troncales.
